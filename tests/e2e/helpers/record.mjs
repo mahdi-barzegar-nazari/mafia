@@ -1,0 +1,88 @@
+import assert from 'node:assert/strict';
+
+/**
+ * Writes down what a person can read on the screen that is showing, so two moments can be compared: the
+ * visible text, the text attributes (aria-label, placeholder, title), the values of the text fields, the
+ * options of every select, the page title and the meta description.
+ *
+ * The language switch is left out unless `includeSwitch` is true: the switch is the one element whose labels
+ * are the same in both languages (each is written in its own), so a recording of "what the language owns" does
+ * not include it.
+ *
+ * The install hint (`.install-hint`: one line on how to install from the browser's menu and its close button) is
+ * always left out too. It is shown only on iPhone, iPad and Firefox for Android, never on the Chromium of these
+ * tests, but its close button's `aria-label` is in the page whether or not it is shown; tests/e2e/install-hint.test.mjs
+ * checks the hint and its texts in both languages.
+ *
+ * The build line (`#build-info`, "v0.1.0 · 8f33eec" or "dev") is always left out: it is a number, not a text
+ * a language owns, and it changes with every build, so it can never be part of a recording of the Persian text.
+ * It is hidden by default (a long press on the welcome title shows it), so `innerText` normally does not see it
+ * at all; the filter below stays for a recording taken while it is revealed.
+ */
+
+export async function recordScreen(page, { includeSwitch = false } = {}) {
+    return page.evaluate((withSwitch) => {
+        const norm = (s) => s.replace(/\s+/g, ' ').trim();
+        const outside = (el) => !el.closest('.install-hint') && (withSwitch || !el.closest('.lang-switch-wrap'));
+        const labels = withSwitch ? [] : [...document.querySelectorAll('.lang-btn')].map((b) => norm(b.textContent));
+        const hintLines = [...document.querySelectorAll('.install-hint span, .install-hint button')].map((el) => norm(el.textContent));
+        const buildLine = norm(document.getElementById('build-info')?.textContent ?? '');
+        const main = document.getElementById('main-content-root');
+
+        const text = main.innerText
+            .split('\n')
+            .map(norm)
+            .filter((line) => line && !labels.includes(line) && !hintLines.includes(line) && line !== buildLine);
+
+        const attrs = [];
+        for (const el of document.querySelectorAll('[aria-label], [placeholder], [title]')) {
+            if (!outside(el)) continue;
+            for (const name of ['aria-label', 'placeholder', 'title']) {
+                if (el.hasAttribute(name)) attrs.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}[${name}]=${norm(el.getAttribute(name))}`);
+            }
+        }
+
+        const fields = [...main.querySelectorAll('input[type="text"]')].map((el, i) => `${el.id || 'input'}#${i}=${el.value}`);
+        const selects = [...main.querySelectorAll('select')].map((el) => `${el.id}: ${[...el.options].map((o) => norm(o.textContent)).join(' | ')}`);
+        const meta = document.querySelector('meta[name="description"]');
+
+        return { title: document.title, description: meta ? meta.getAttribute('content') : null, text, attrs, fields, selects };
+    }, includeSwitch);
+}
+
+/**
+ * Compare a recording of a Persian screen with the one in fixtures/persian-baseline.json: every part, in order,
+ * and the same set of parts. `which` names the screen in the failure message.
+ */
+export function assertMatchesBaseline(actual, baseline, which) {
+    for (const key of ['title', 'description', 'text', 'attrs', 'fields', 'selects']) assert.deepEqual(actual[key], baseline[key], `${which}: ${key}`);
+    assert.deepEqual(Object.keys(actual), Object.keys(baseline), `${which}: the parts of a recording`);
+}
+
+/** Text and text attributes of one modal (`selector`), the same way. */
+export async function recordModal(page, selector) {
+    return page.evaluate((sel) => {
+        const norm = (s) => s.replace(/\s+/g, ' ').trim();
+        const root = document.querySelector(sel);
+        const text = root.innerText
+            .split('\n')
+            .map(norm)
+            .filter(Boolean);
+        const attrs = [];
+        for (const el of root.querySelectorAll('[aria-label], [placeholder], [title]')) {
+            for (const name of ['aria-label', 'placeholder', 'title']) {
+                if (el.hasAttribute(name)) attrs.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}[${name}]=${norm(el.getAttribute(name))}`);
+            }
+        }
+        return { text, attrs };
+    }, selector);
+}
+
+/** A Persian or Arabic letter (the Arabic-script blocks), which no English screen may show. */
+export const PERSIAN_LETTER = /[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+/** Every string of a recording (or a plain list of strings) that holds a Persian letter. */
+export function persianIn(recording) {
+    const strings = Array.isArray(recording) ? recording : Object.values(recording).flat();
+    return strings.filter((s) => typeof s === 'string' && PERSIAN_LETTER.test(s));
+}

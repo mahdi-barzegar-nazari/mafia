@@ -1,0 +1,72 @@
+/*
+ * Mafia service worker
+ * ------------------------------------------------------------------
+ * Strategy: a versioned app-shell precache served cache-first.
+ *
+ *  - `scripts/build.mjs` replaces __BUILD_VERSION__ with a hash of every shipped file and
+ *    fills PRECACHE with the file list. Any change to any file therefore yields a new
+ *    service worker and a brand-new cache, so installed users always get updates.
+ *  - In a source checkout the placeholders stay untouched. The worker then detects DEV mode
+ *    and never caches, so local edits show up immediately.
+ *  - Precaching bypasses the HTTP cache (cache: 'reload') so a cache can never mix files
+ *    from two different builds.
+ *  - Old caches are deleted on activate. Only caches that start with this app's own prefix
+ *    are touched: several apps of the same owner can live on one origin (one per path), and
+ *    their caches (`spyfall-...`) are none of this worker's business.
+ */
+const VERSION = '__BUILD_VERSION__';
+const PRECACHE = /* __PRECACHE__ */ [];
+
+const DEV = VERSION.startsWith('__');
+const CACHE_PREFIX = 'mafia-';
+const SHELL_CACHE = `${CACHE_PREFIX}shell-${VERSION}`;
+
+self.addEventListener('install', (event) => {
+    if (DEV) {
+        event.waitUntil(self.skipWaiting());
+        return;
+    }
+    event.waitUntil((async () => {
+        const cache = await caches.open(SHELL_CACHE);
+        await cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })));
+        await self.skipWaiting();
+    })());
+});
+
+self.addEventListener('activate', (event) => {
+    event.waitUntil((async () => {
+        const keep = new Set([SHELL_CACHE]);
+        const keys = await caches.keys();
+        await Promise.all(
+            keys.filter((key) => key.startsWith(CACHE_PREFIX) && !keep.has(key)).map((key) => caches.delete(key))
+        );
+        await self.clients.claim();
+    })());
+});
+
+self.addEventListener('fetch', (event) => {
+    const { request } = event;
+    if (DEV || request.method !== 'GET') return;
+
+    const url = new URL(request.url);
+    if (url.origin === self.location.origin) {
+        event.respondWith(shellFirst(request));
+    }
+});
+
+/** Serve the app shell from this build's cache; fall back to the network. */
+async function shellFirst(request) {
+    const cache = await caches.open(SHELL_CACHE);
+    const cached = await cache.match(request, { ignoreSearch: true });
+    if (cached) return cached;
+    try {
+        return await fetch(request);
+    } catch (error) {
+        // Offline navigation to an unknown URL: show the app instead of a browser error page.
+        if (request.mode === 'navigate') {
+            const shell = await cache.match('./index.html');
+            if (shell) return shell;
+        }
+        throw error;
+    }
+}

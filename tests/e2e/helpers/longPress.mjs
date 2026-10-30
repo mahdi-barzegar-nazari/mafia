@@ -12,6 +12,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PHONE, newPage } from './app.mjs';
 
+/** Where the fake clock is paused. The clock is installed at 0 and runs in real time until then, so this must be later than any page load can take (pausing at a time already passed is an error). */
+const PAUSE_AT_MS = 60_000;
+
 const pkg = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
 
 /**
@@ -26,7 +29,7 @@ export async function withWelcome(browser, url, fn, { lang = 'fa', clock = true,
         if (clock) await page.clock.install({ time: 0 });
         await page.goto(url);
         await page.waitForSelector('#screen-welcome:not(.hidden)');
-        if (clock) await page.clock.pauseAt(1000);
+        if (clock) await page.clock.pauseAt(PAUSE_AT_MS);
         await fn({ page, context });
         assert.deepEqual(problems, []);
     } finally {

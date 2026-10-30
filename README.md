@@ -12,6 +12,7 @@ Persian (RTL) and English (LTR) UI · zero runtime dependencies · installable o
 [![Vanilla JS](https://img.shields.io/badge/vanilla-ES_modules-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](#architecture)
 [![Dependencies: 0](https://img.shields.io/badge/runtime_dependencies-0-brightgreen?style=flat-square)](./package.json)
 [![Support](https://img.shields.io/badge/support-buy_me_a_coffee-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=black)](https://www.coffeete.ir/MahdiBN)
+[▶ Play the live demo](https://mahdi-barzegar-nazari.github.io/mafia/)
 
 </div>
 

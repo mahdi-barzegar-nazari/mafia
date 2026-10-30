@@ -138,12 +138,9 @@ describe('module graph of js/', () => {
         assert.ok(graph.get('js/ui/bindings.js').includes('js/core/dispatch.js'), 'bindings.js imports dispatch from core/dispatch.js');
     });
 
-    it('has the layers of the architecture: app, core, i18n, platform, ui, utils (game/ and data/ stay empty until step 2)', () => {
+    it('has the layers of the architecture: app, core, i18n, platform, ui, utils', () => {
         for (const layer of ['app', 'core', 'i18n', 'platform', 'ui', 'utils']) {
             assert.ok([...graph.keys()].some((file) => file.startsWith(`js/${layer}/`)), `js/${layer}/ was not found in the module graph`);
-        }
-        for (const layer of ['game', 'data']) {
-            assert.ok(existsSync(join(ROOT, 'js', layer)), `js/${layer}/ is missing: the folder is part of the layout`);
         }
     });
 

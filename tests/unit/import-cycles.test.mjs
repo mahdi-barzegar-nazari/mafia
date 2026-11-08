@@ -236,7 +236,7 @@ describe('cycle detector (self-check on throwaway trees)', () => {
     });
 });
 
-describe('layer rules (self-check on throwaway trees: the real game/ and data/ are empty, so the rules are proved here)', () => {
+describe('layer rules (self-check on throwaway trees; the real game/ and data/ are checked in game-layering.test.mjs)', () => {
     function violationsOf(files) {
         const root = mkdtempSync(join(tmpdir(), 'mafia-layers-'));
         try {

@@ -4,7 +4,7 @@
 
 A single-page app made of native ES modules. There is no bundler and no framework; `index.html` loads `js/main.js`, which imports everything else.
 
-This is **step 1 of 4**: the shell. It has the infrastructure of the finished Spyfall app (state, phases, dispatch, storage, i18n, themes, service worker, tests) and two screens, `welcome` and `setup`, and **no game logic**. `game/` and `data/` are empty on purpose: step 2 puts the game's rules and data there.
+This is **step 2 of 4**: the shell of step 1 plus the **pure rules engine** in `js/game/` and `js/data/` (see [The rules engine](#the-rules-engine) and `docs/game-rules.md`). The app has the infrastructure of the finished Spyfall app (state, phases, dispatch, storage, i18n, themes, service worker, tests) and two screens, `welcome` and `setup`. It has **no game screens yet**: the engine is not wired into `core/state`, the storage, `app/actions` or the UI; step 3 does that.
 
 ## Shared infrastructure files
 
@@ -27,7 +27,7 @@ Mafia and Spyfall are meant to stay recognisably aligned: the same folders, the 
 
 ## Mafia-specific files
 
-**None yet.** Every source file of this version exists in Spyfall in some form. What Mafia adds in step 1 is tests only: `tests/unit/{bindings,lang-round-trip,modal,phase-flow,screens,storage-state,theme,theme-tokens}.test.mjs`, `tests/e2e/{confirm-modal,offline,players-count,theme-selector}.test.mjs`, `tests/unit/setup.test.mjs` (the players-count field) and the recorded `tests/e2e/fixtures/persian-baseline.json`. Files that belong to Mafia alone (its roles, phases, rules and data) are added in step 2 and listed here when they exist.
+Everything under `js/game/` and `js/data/` belongs to Mafia alone (Spyfall has its own rules). Added in step 1, tests only: `tests/unit/{bindings,lang-round-trip,modal,phase-flow,screens,storage-state,theme,theme-tokens}.test.mjs`, `tests/e2e/{confirm-modal,offline,players-count,theme-selector}.test.mjs`, `tests/unit/setup.test.mjs` (the players-count field) and the recorded `tests/e2e/fixtures/persian-baseline.json`. Added in step 2: the rules engine and its tests, listed under [The rules engine](#the-rules-engine), and `docs/game-rules.md`.
 
 ## Layering rules
 
@@ -37,9 +37,10 @@ The folders are layers, and `tests/unit/import-cycles.test.mjs` reads every `imp
 2. **`core/` and `i18n/` never import from `game/`, `ui/` or `app/`.** What `core/` needs from above is injected at start-up through the seams below.
 3. **`data/` imports only `data/`.** The language is passed in as an argument, never read from `i18n/`.
 4. **`app/` is imported by `main.js` only** (`app/wire.js` installs `app/actions.js`; nothing else may import the handler).
-5. `game/`, `ui/`, `platform/` and `utils/` may import `core/` and `i18n/`; `utils/` and `core/config.js` stay pure (no DOM), so they stay unit-testable.
+5. `ui/`, `platform/` and `utils/` may import `core/` and `i18n/`; `utils/` and `core/config.js` stay pure (no DOM), so they stay unit-testable.
+6. **`game/` imports only `game/`, `data/`, `utils/` and `core/config.js`** (for `RULES`), never `ui/`, `app/`, `i18n/`, `platform/` or the rest of `core/`, and nothing in `core/`, `i18n/`, `utils/`, `platform/` or `data/` imports `game/`. `tests/unit/game-layering.test.mjs` checks this on the real tree.
 
-`js/game/` and `js/data/` contain no files in this version, so rules 2 and 3 are proved on throwaway trees inside the test instead of on real files. The folders are kept in the repository (and in the zip) so the layout matches Spyfall's.
+Rules 2 and 3 are checked on the real `game/` and `data/` files and also on throwaway trees (so a broken check cannot pass by finding nothing). Git does not keep empty folders, so `game/` and `data/` hold real files and carry no `.gitkeep`; `game-layering.test.mjs` fails on any empty directory or `.gitkeep` in the tree, and the unit suite does not depend on one.
 
 ## Control flow
 
@@ -87,12 +88,37 @@ Dotted arrows are the injected links; everything else is a plain `import`. The s
 | :--- | :--- | :--- |
 | `app/` | `actions`, `wire` | The action handler (the `switch`) and the composition root. Only `wire` imports `actions`, and only `main.js` imports `wire`. |
 | `core/` | `config`, `state`, `storage`, `phase`, `dispatch`, `buildInfo` | `config` is pure data (the phases, the limits, the theme colours). `buildInfo` is two stamped constants (version, hash) and imports nothing. `dispatch` is a port and `phase` holds `setPhase` and `commitState`; neither imports `game/`, `ui/` or `app/`. |
-| `game/` | (empty) | Step 2: the rules. |
+| `game/` | `constants`, `json`, `rules`, `roles`, `engine`, `persistence`, `view` | The pure rules engine (see [The rules engine](#the-rules-engine)). Imports only `game/`, `data/`, `utils/` and `core/config.js`. |
 | `ui/` | `render`, `setup`, `bindings`, `feedback`, `focusTrap`, `langSwitch`, `theme`, `buildInfo`, `buildInfoReveal` | All DOM code lives here. |
 | `platform/` | `wakeLock`, `antiZoom`, `install`, `installHint`, `serviceWorker` | Browser capabilities. `installHint` is pure (no imports, no DOM): it decides which install hint applies (see [Install hint](#install-hint)). |
 | `i18n/` | `index`, `catalogs`, `fa`, `en` | Translation core and the Persian and English catalogs (see [Translations](#translations)). |
 | `js/` root | `main`, `preinit` | `main` is the module entry. `preinit` is a classic script loaded from `<head>` that is not part of the module graph (see [First paint in another language](#first-paint-in-another-language)). |
-| `data/`, `utils/` | (`data/` empty), `text`, `random` | `utils/` is pure and unit-tested. |
+| `data/`, `utils/` | `roles`, `text`, `random` | `data/roles.js` holds the role and night-step constants (it imports nothing). `utils/` is pure and unit-tested. |
+
+## The rules engine
+
+`js/game/` and `js/data/` hold the rules of Mafia as a pure state machine. The rules themselves are in `docs/game-rules.md`; this section is about how the code is built.
+
+**Purity.** No DOM, no storage, no timers, no `Date`, no `Math.random`. The only randomness is a function that `createGame` is given (it returns a number in `[0, 1)`), so a seeded function reproduces a deal exactly. A source scan in `game-layering.test.mjs` fails on `document`, `window`, `localStorage`, `Math.random`, `Date` and the like. All data is plain JSON, and every function returns a new value and leaves its input alone (the tests run whole games on deep-frozen inputs). Inside, each replay builds a private working state from the setup and the reducer changes that copy in place (it is never shared with a game), which keeps a replay cheap. Results are ids, roles, booleans and error codes: there is no display text, no catalog key, no Persian text.
+
+**Layering.** `game/` imports `game/`, `data/`, `utils/` and `core/config.js` only; `data/` imports nothing. Nothing outside `game/` imports it yet.
+
+**Why event sourcing makes undo exact.** A game is `{ version, setup, actions }`, and the state is not stored: `getState` replays the actions from the setup every time. Undo is then just dropping the last action. There is no second copy of the truth to repair, so nothing can be left behind: a death is gone, the doctor's once-only self-save is free again (the mark is derived from the self-save action), a vote is un-cast, and undoing every action gives back the game `createGame` made. Saving is the same JSON, and loading replays it, so a tampered or damaged save is caught by the replay instead of trusted.
+
+**Files.**
+
+| File | Contents |
+| :--- | :--- |
+| `js/data/roles.js` | role ids, the mafia team and the town, the night steps in order and their action types |
+| `js/game/constants.js` | `GAME_SAVE_VERSION`, phases, action types, winners, error codes |
+| `js/game/json.js` | `isPlainObject`, `clone`, `deepEqual` for plain JSON |
+| `js/game/rules.js` | `DEFAULT_RULES`, `normalizeRules`, the name limits |
+| `js/game/roles.js` | `roleCounts` (the role table), `roleList`, `matchesCounts`, `shuffleWith` (Fisher-Yates with an injected random), `isMafiaTeam` |
+| `js/game/engine.js` | `createGame`, `applyAction`, `undo`, `getState`, `winnerFromCounts`, and the replay and reducer behind them |
+| `js/game/view.js` | `getModeratorView(state)` |
+| `js/game/persistence.js` | `serializeGame`, `deserializeGame`, `GAME_SAVE_VERSION` |
+
+**Tests (837 unit tests in total: 534 before step 2, 303 added).** One file per module, `tests/unit/game-*.test.mjs` plus the helper `tests/unit/helpers/gameKit.mjs` (a seeded random, ready-made games, action builders): `game-roles` (36: the role table for every n, with and without the godfather, the constants, the shuffle), `game-rules` (10), `game-create` (34), `game-night` (47), `game-day` (52), `game-win` (25), `game-undo` (20), `game-persistence` (31), `game-view` (14), `game-fuzz` (19: 396 seeded random playthroughs of 3 to 20 players with every option, about 14,000 actions and 6,000 illegal inputs, each checked against an independent model of who lives and dies) and `game-layering` (15). The 199 end-to-end tests are unchanged: nothing the browser loads imports the engine yet.
 
 ## Translations
 
@@ -161,7 +187,8 @@ The install button (`#btn-install-app`) only appears when the browser fires `bef
 
 ## Known trade-offs
 
-- **`game/` and `data/` are empty,** so the layering rules for them are proved on throwaway trees in the test, not on real files, until step 2.
+- **The engine is not wired in.** Nothing outside `game/` imports it, so the app still behaves as in step 1 and the e2e suite and the Persian baseline are unchanged. `game-layering.test.mjs` asserts that on purpose; step 3 deletes that one test when it connects the engine.
+- **A game can stall.** There is no round limit (a save and a tied vote every round never ends the game), and the number of actions in a save has no cap. The moderator ends such a game, and a real game does not need either limit.
 - **The confirm dialog is dormant.** `#confirm-modal`, its buttons and the `OPEN_MODAL` / `CLOSE_MODAL` actions are the shared machinery (focus trap, inert page, focus given back) that step 2's "are you sure?" questions will use. Nothing in the shell opens it; `tests/unit/modal.test.mjs` and `tests/e2e/confirm-modal.test.mjs` keep it working.
 - **`ui/setup.js` reads the form and writes the settings in one step** (`validateAndSaveSettings`), as in Spyfall. The parsing and the rule are separate pure functions (`parsePlayersCount`, `isValidPlayersCount`), so they are tested without a DOM.
 - **A saved theme is not validated.** `initTheme` puts whatever `mafia_selected_theme` holds on `<body>`; a damaged value leaves the selector blank. Only the eight themes can be saved by the page itself. Same code as Spyfall.

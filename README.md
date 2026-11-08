@@ -25,7 +25,7 @@ Mafia (مافیا) is the classic party game in which a hidden minority tries to
 
 It ships as native ES modules, a service worker and plain CSS, with no framework and no bundler.
 
-> **Status: step 1 of 4, the app shell.** The shell is complete and tested, and it has **no game logic yet**: no roles, no phases of a night or a day, no votes. It has the welcome screen and a placeholder setup screen that asks only for the number of players (3 to 20). The game itself arrives in the next steps, on top of the infrastructure described below.
+> **Status: step 2 of 4, rules engine done, no game screens yet.** The app shell of step 1 is complete and tested, and the **rules engine** now exists as pure, tested code (`js/game/`, `js/data/`; the rules are in [`docs/game-rules.md`](./docs/game-rules.md)): roles, the night, the vote, winning, undo and saving. The engine is not wired into the app yet, so the app still shows only the welcome screen and a placeholder setup screen that asks for the number of players (3 to 20). The game screens arrive in the next steps, on top of the infrastructure described below.
 
 ## What the shell has
 
@@ -56,7 +56,7 @@ npm run preview        # serves ./dist to test real offline caching
 
 ```bash
 npm install            # dev tooling only: ESLint, Prettier, Playwright (this also writes package-lock.json: commit it, CI runs `npm ci`)
-npm test               # 534 unit tests (built-in node:test, no dependencies)
+npm test               # 837 unit tests (built-in node:test, no dependencies): the app shell and the rules engine
 npx playwright install chromium
 npm run test:e2e       # 199 real-browser tests of the production build: smoke test, offline first load, language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint
 npm run lint
@@ -79,10 +79,10 @@ On the welcome screen tap **English** (or **فارسی** to go back). The two bu
 │   ├── preinit.js             # classic <head> script: language and direction before the first paint (English users)
 │   ├── app/                   # composition root: the action handler behind dispatch(), and wireApp()
 │   ├── core/                  # config (rules, theme colours), state, storage, phase (setPhase, commitState), dispatch port, buildInfo (stamped version and hash)
-│   ├── game/                  # (empty: the game rules arrive in step 2)
+│   ├── game/                  # the rules engine: roles table, rules, engine (night, vote, win, undo), view, save/load (pure, not wired to the UI yet)
 │   ├── ui/                    # rendering, setup form, event bindings, theme, language switch, toasts, focus trap, build line
 │   ├── platform/              # wake lock, anti-zoom, install prompt and install hint, service worker registration
-│   ├── data/                  # (empty: step 2 adds the game's data)
+│   ├── data/                  # the role and night-step constants (roles.js)
 │   ├── i18n/                  # translation core (t, language switching) and the Persian and English catalogs
 │   └── utils/                 # text and random helpers (pure)
 ├── sw.js                      # service worker (versioned app-shell precache)
@@ -119,8 +119,9 @@ Pushes to `main` run [`deploy.yml`](./.github/workflows/deploy.yml): unit tests,
 
 ## Roadmap
 
-- [x] Step 1: the app shell (this version): infrastructure, welcome and setup placeholder, tests, documentation
-- [ ] Steps 2 to 4: the game itself, built on the shell (not started)
+- [x] Step 1: the app shell: infrastructure, welcome and setup placeholder, tests, documentation
+- [x] Step 2: the rules engine (this version): roles, night, vote, win, undo, save/load, tests, `docs/game-rules.md`; no screens
+- [ ] Steps 3 and 4: the game screens and the finish, built on the shell and the engine (not started)
 
 ## Contributing
 

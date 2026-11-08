@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+Step 2 of 4: the pure rules engine and its tests. **No screens, no visible text, no catalog key:** the engine is not wired into the app, so what a person sees is unchanged.
+
+### Added
+
+- **The rules engine** in `js/game/` (`constants`, `json`, `rules`, `roles`, `engine`, `view`, `persistence`) and `js/data/roles.js`: five roles (mafia, godfather, doctor, detective, citizen), the role table for 3 to 20 players, the night (mafia team, doctor, detective), the vote, the win rule, exact undo and save/load. It is event-sourced (a game is its setup plus its actions; the state is derived by replay), pure (no DOM, storage, timers, `Date` or `Math.random`; randomness is an injected function) and plain JSON.
+- **Rule options:** `doctorSelfSave` (`never`, `once`, `always`; default `once`), `godfather` (default off; needs 6 or more players) and `revealRoleOnDeath` (default on).
+- **`docs/game-rules.md`:** the rules exactly as implemented (roles, the table, options, the night, the vote, winning, undo, the save format, every error code). `docs/architecture.md` describes `game/` and `data/`, the purity and layering rules and why event sourcing makes undo exact.
+- **Tests.** 303 new unit tests, 837 in all (534 before): one `game-*.test.mjs` file per module, a seeded fuzz of 396 whole playthroughs (3 to 20 players, every option) checked against an independent model, and a layering and purity test (what `game/` may import, a source scan for the DOM, storage, timers, `Date` and `Math.random`, and no empty directory or `.gitkeep`). The 199 end-to-end tests are unchanged.
+
+### Changed
+
+- `js/i18n/en.js`: the glossary comment lists the engine's terms (mafia, godfather, doctor, detective, citizen, night, day, vote, eliminated) with the Persian term to use later, written in Latin letters because `tests/unit/i18n-en.test.mjs` allows no Persian character in that file; the same terms in Persian script are in `docs/game-rules.md`. Comment only; no catalog key.
+- `tests/unit/import-cycles.test.mjs`: the title of the throwaway-tree describe no longer says the real `game/` and `data/` are empty (wording only).
+- `README.md` and `docs/architecture.md`: status, roadmap, file list, layering and test counts for step 2.
+
+### Removed
+
+- The "empty on purpose" wording for `game/` and `data/` (they hold real files now, so no `.gitkeep` is needed).
+
 ## 0.1.0
 
 First version: the app shell of step 1 of 4. It has the infrastructure of the finished Spyfall app and **no game logic**.

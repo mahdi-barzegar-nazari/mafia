@@ -1,8 +1,9 @@
 /**
  * The generic confirm dialog and the machinery around it (focus trap, inert page, focus given back), in a real
- * Chromium at 360x740 against the PRODUCTION build. Nothing in the shell opens the dialog yet (step 2's "are you sure?"
- * questions will), so the test opens it the way the app will, through the real `dispatch` of the running page, and
- * checks what a keyboard or screen-reader user gets. The unit tests of the same machinery are tests/unit/modal.test.mjs.
+ * Chromium at 360x740 against the PRODUCTION build. The game's "are you sure?" questions (leaving the reveal, a new
+ * game, dealing over a saved game) open it and are tested with the game in game-flow.test.mjs; this test opens it
+ * through the real `dispatch` of the running page with a neutral text, and checks what a keyboard or screen-reader
+ * user gets from the dialog itself. The unit tests of the same machinery are tests/unit/modal.test.mjs.
  * Requires: npm install && npx playwright install chromium
  */
 import assert from 'node:assert/strict';

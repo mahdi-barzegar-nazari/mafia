@@ -11,7 +11,8 @@ import { bindEvents } from './ui/bindings.js';
 import { initBuildInfoReveal, renderBuildInfo } from './ui/buildInfo.js';
 import { clearToasts } from './ui/feedback.js';
 import { syncLangSwitch } from './ui/langSwitch.js';
-import { updateSetupLimitHints } from './ui/setup.js';
+import { relocalizeNameInputs, resetSetupForm, updateSetupLimitHints } from './ui/setup.js';
+import { syncResumeButton } from './ui/resume.js';
 import { initTheme } from './ui/theme.js';
 
 /** Initial render. */
@@ -22,19 +23,27 @@ function start() {
 
     initBuildInfoReveal();
 
+    // The setup form starts from its defaults, with one default-named field per player.
+    resetSetupForm();
+
     updateSetupLimitHints();
+
+    // A game saved by an earlier visit can be resumed from the welcome screen.
+    syncResumeButton();
 }
 
 /**
  * What JS writes into the page once, and so does not follow the static translator by itself: the pressed
- * state of the language switch, the limit hints and any toast still on screen. Redo them when the language
- * changes: after a click on the switch (and, later, when a saved match is restored in the language it was
- * started in). Texts built when something opens need nothing here.
+ * state of the language switch, the limit hints, the default names of the setup form (and the labels of its name
+ * fields) and any toast still on screen. Redo them when the language changes: after a click on the switch. The
+ * language cannot change while a game is in progress, so the texts of the reveal and moderator screens, which are
+ * built when they are drawn, need nothing here.
  */
 function refreshLanguageDependentUi() {
     syncLangSwitch();
     clearToasts();
     updateSetupLimitHints();
+    relocalizeNameInputs();
 }
 
 initI18n();

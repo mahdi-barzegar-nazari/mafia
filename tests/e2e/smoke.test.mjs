@@ -2,9 +2,10 @@
  * End-to-end smoke test against the PRODUCTION build (dist), in a real Chromium.
  * Requires: npm install && npx playwright install chromium
  *
- * The shell has two screens: this checks that the app loads without a script error, that "start" leads to the
- * setup placeholder and "back" returns, that the app installs as a PWA (manifest, icons) and that, once the service
- * worker has precached the shell, a first load with no network at all shows the app.
+ * This checks that the app loads without a script error, that "start" leads to the setup screen and "back"
+ * returns, that nothing starts or is saved before "deal roles", that the app installs as a PWA (manifest, icons)
+ * and that, once the service worker has precached the shell, a first load with no network at all shows the app.
+ * The game itself (reveal, moderator's list, save and resume) is in game-flow.test.mjs.
  */
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
@@ -51,7 +52,7 @@ describe('mafia (production build)', () => {
         });
     });
 
-    it('start leads to the setup placeholder and back returns to the welcome screen, as often as asked', async () => {
+    it('start leads to the setup screen and back returns to the welcome screen, as often as asked', async () => {
         await withPage(async (page) => {
             for (let round = 0; round < 3; round++) {
                 await page.click('#btn-nav-setup');
@@ -66,12 +67,23 @@ describe('mafia (production build)', () => {
         });
     });
 
-    it('the setup placeholder shows only the players-count field (3 to 20, with its hint) and a back button; no game starts', async () => {
+    it('the setup screen shows the players-count field, one name field per player, the three rules, the help buttons, "deal roles" and back; no game starts', async () => {
         await withPage(async (page) => {
             await page.click('#btn-nav-setup');
             await page.waitForSelector('#screen-setup:not(.hidden)');
-            const controls = await page.evaluate(() => [...document.querySelectorAll('#screen-setup input, #screen-setup select, #screen-setup textarea, #screen-setup button, #screen-setup a')].filter((el) => el.offsetParent !== null).map((el) => el.id));
-            assert.deepEqual(controls, ['setup-players-count', 'btn-back-welcome-2']);
+            const controls = await page.evaluate(() => [...document.querySelectorAll('#screen-setup input, #screen-setup select, #screen-setup textarea, #screen-setup button, #screen-setup a')].filter((el) => el.offsetParent !== null || el.type === 'checkbox').map((el) => el.id));
+            assert.deepEqual(controls, [
+                'setup-players-count',
+                ...Array.from({ length: 8 }, (_, i) => `setup-name-${i + 1}`),
+                'btn-info-doctor-save',
+                'setup-doctor-save',
+                'btn-info-godfather',
+                'setup-godfather',
+                'btn-info-reveal-death',
+                'setup-reveal-death',
+                'btn-deal',
+                'btn-back-welcome-2'
+            ]);
             assert.equal(await page.inputValue('#setup-players-count'), '8');
             assert.equal(await page.textContent('#players-limit-hint'), 'بین ۳ تا ۲۰ نفر');
             assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('mafia_full_state_master'))), null, 'nothing is saved: there is no match');

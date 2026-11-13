@@ -10,16 +10,17 @@ import { gameState } from '../../js/core/state.js';
 
 let log;
 let savedPhase;
-let savedPlayers;
+let savedGame;
 let savedStorage;
 
 beforeEach(() => {
     log = [];
     savedPhase = gameState.phase;
-    savedPlayers = gameState.players;
+    savedGame = gameState.game;
     savedStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-    // persist() only writes when a match exists, and needs a localStorage to write to.
-    gameState.players = [{ id: 'p1', name: 'A' }];
+    // persist() only writes when a game exists (any non-null value counts: it does not look inside), and needs a
+    // localStorage to write to.
+    gameState.game = {};
     Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,
         writable: true,
@@ -29,7 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
     gameState.phase = savedPhase;
-    gameState.players = savedPlayers;
+    gameState.game = savedGame;
     if (savedStorage) Object.defineProperty(globalThis, 'localStorage', savedStorage);
     else delete globalThis.localStorage;
     setRenderer(null);
@@ -38,7 +39,7 @@ afterEach(() => {
 });
 
 describe('commitState', () => {
-    it('renders first and then persists the match', () => {
+    it('renders first and then persists the game', () => {
         setRenderer(() => log.push('render'));
         commitState();
         assert.deepEqual(log, ['render', 'persist:mafia_full_state_master']);
@@ -60,8 +61,8 @@ describe('commitState', () => {
 });
 
 describe('persist (the save behind commitState)', () => {
-    it('writes nothing while no match exists (the welcome and setup screens hold nothing worth keeping)', () => {
-        gameState.players = [];
+    it('writes nothing while no game exists (the welcome and setup screens hold nothing worth keeping)', () => {
+        gameState.game = null;
         setRenderer(() => log.push('render'));
         commitState();
         assert.deepEqual(log, ['render']);
@@ -69,6 +70,14 @@ describe('persist (the save behind commitState)', () => {
 });
 
 describe('setPhase', () => {
+    it('accepts every phase of the app, the two screens of a game included', () => {
+        setRenderer(() => log.push('render'));
+        for (const phase of ['welcome', 'setup', 'reveal', 'moderator']) {
+            setPhase(phase);
+            assert.equal(gameState.phase, phase);
+        }
+    });
+
     it('ignores unknown phases without touching state, hook or renderer', () => {
         gameState.phase = 'setup';
         setRenderer(() => log.push('render'));

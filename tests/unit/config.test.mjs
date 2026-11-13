@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { DEFAULT_PLAYERS_COUNT, RULES, THEME_COLORS, VALID_PHASES } from '../../js/core/config.js';
+import { DEFAULT_PLAYERS_COUNT, INFO_KEYS, RULES, THEME_COLORS, VALID_PHASES } from '../../js/core/config.js';
+import { en } from '../../js/i18n/en.js';
+import { fa } from '../../js/i18n/fa.js';
 
 const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 
@@ -24,13 +26,25 @@ describe('DEFAULT_PLAYERS_COUNT', () => {
     });
 });
 
+describe('INFO_KEYS', () => {
+    it('are the three options of the form, frozen, and each has a title and a text in both languages', () => {
+        assert.deepEqual([...INFO_KEYS], ['doctorSelfSave', 'godfather', 'revealRoleOnDeath']);
+        assert.ok(Object.isFrozen(INFO_KEYS));
+        for (const [lang, catalog] of [['fa', fa], ['en', en]]) {
+            for (const key of INFO_KEYS) {
+                for (const part of ['title', 'text']) assert.equal(typeof catalog[`info.${key}.${part}`], 'string', `${lang}: info.${key}.${part}`);
+            }
+        }
+    });
+});
+
 describe('configuration stays in sync with index.html', () => {
     it('every game phase has a matching screen, and vice versa', () => {
         const screens = [...html.matchAll(/<section id="screen-([a-z]+)"/g)].map((m) => m[1]).sort();
         assert.deepEqual(screens, [...VALID_PHASES].sort());
     });
-    it('the phases known so far are the welcome screen and the setup screen, nothing else', () => {
-        assert.deepEqual([...VALID_PHASES], ['welcome', 'setup']);
+    it('the phases known so far are the welcome screen, the setup form, the reveal screen and the moderator\'s screen, nothing else', () => {
+        assert.deepEqual([...VALID_PHASES], ['welcome', 'setup', 'reveal', 'moderator']);
     });
     it('the players-count field starts with the default count', () => {
         assert.match(html, new RegExp(`<input[^>]*id="setup-players-count"[^>]*value="${DEFAULT_PLAYERS_COUNT}"`));

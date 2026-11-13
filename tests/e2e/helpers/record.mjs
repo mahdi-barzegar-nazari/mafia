@@ -14,6 +14,14 @@ import assert from 'node:assert/strict';
  * tests, but its close button's `aria-label` is in the page whether or not it is shown; tests/e2e/install-hint.test.mjs
  * checks the hint and its texts in both languages.
  *
+ * The "Resume game" button (`#btn-resume-game`) is always left out as well: it exists only while a valid save exists,
+ * so a recording of what the language owns must read the same with and without one.
+ *
+ * What belongs to a screen that is not showing is not part of the recording of the one that is: the attributes and
+ * the select options of a hidden screen (the help buttons, the name inputs, the doctor select of setup) and its
+ * per-player name inputs are read only while their own screen is on. The players-count field of setup stays in
+ * every recording, as it was in the recordings the baseline was made from.
+ *
  * The build line (`#build-info`, "v0.1.0 · 8f33eec" or "dev") is always left out: it is a number, not a text
  * a language owns, and it changes with every build, so it can never be part of a recording of the Persian text.
  * It is hidden by default (a long press on the welcome title shows it), so `innerText` normally does not see it
@@ -23,16 +31,18 @@ import assert from 'node:assert/strict';
 export async function recordScreen(page, { includeSwitch = false } = {}) {
     return page.evaluate((withSwitch) => {
         const norm = (s) => s.replace(/\s+/g, ' ').trim();
-        const outside = (el) => !el.closest('.install-hint') && (withSwitch || !el.closest('.lang-switch-wrap'));
+        const inHiddenScreen = (el) => Boolean(el.closest('.screen-view.hidden'));
+        const outside = (el) => !el.closest('.install-hint') && !el.closest('#btn-resume-game') && !inHiddenScreen(el) && (withSwitch || !el.closest('.lang-switch-wrap'));
         const labels = withSwitch ? [] : [...document.querySelectorAll('.lang-btn')].map((b) => norm(b.textContent));
         const hintLines = [...document.querySelectorAll('.install-hint span, .install-hint button')].map((el) => norm(el.textContent));
         const buildLine = norm(document.getElementById('build-info')?.textContent ?? '');
+        const resumeLine = norm(document.getElementById('btn-resume-game')?.textContent ?? '');
         const main = document.getElementById('main-content-root');
 
         const text = main.innerText
             .split('\n')
             .map(norm)
-            .filter((line) => line && !labels.includes(line) && !hintLines.includes(line) && line !== buildLine);
+            .filter((line) => line && !labels.includes(line) && !hintLines.includes(line) && line !== buildLine && line !== resumeLine);
 
         const attrs = [];
         for (const el of document.querySelectorAll('[aria-label], [placeholder], [title]')) {
@@ -42,8 +52,10 @@ export async function recordScreen(page, { includeSwitch = false } = {}) {
             }
         }
 
-        const fields = [...main.querySelectorAll('input[type="text"]')].map((el, i) => `${el.id || 'input'}#${i}=${el.value}`);
-        const selects = [...main.querySelectorAll('select')].map((el) => `${el.id}: ${[...el.options].map((o) => norm(o.textContent)).join(' | ')}`);
+        const fields = [...main.querySelectorAll('input[type="text"]')]
+            .filter((el) => !(el.classList.contains('name-input') && inHiddenScreen(el)))
+            .map((el, i) => `${el.id || 'input'}#${i}=${el.value}`);
+        const selects = [...main.querySelectorAll('select')].filter((el) => !inHiddenScreen(el)).map((el) => `${el.id}: ${[...el.options].map((o) => norm(o.textContent)).join(' | ')}`);
         const meta = document.querySelector('meta[name="description"]');
 
         return { title: document.title, description: meta ? meta.getAttribute('content') : null, text, attrs, fields, selects };

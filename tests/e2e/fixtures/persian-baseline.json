@@ -1,6 +1,6 @@
 {
   "_source": "mafia 0.1.0 (step 1: welcome and setup), this project's own first build with scripts/build.mjs, Persian (no saved language), 360x740",
-  "_indexHtmlSha256": "6f0da375969f95d01af14be65317ef8732fee71b2534908ccaef6744e86d8162",
+  "_indexHtmlSha256": "48cb9d70c3a8e90f4f2e796e0d9e2ceff717f6bcd4f96c35de2025992d7038cf",
   "welcome": {
     "title": "مافیا - دستیار راوی بازی دورهمی",
     "description": "دستیار راوی برای بازی دورهمی مافیا - نسخه تحت وب، بدون نیاز به نصب",
@@ -49,19 +49,56 @@
       "تنظیمات بازی",
       "تعداد بازیکنان:",
       "بین ۳ تا ۲۰ نفر",
+      "نام بازیکنان:",
+      "حداکثر ۲۴ حرف برای هر نام",
+      "دکتر خودش را نجات دهد:",
+      "ℹ️",
+      "هرگز",
+      "یک بار",
+      "همیشه",
+      "پدرخوانده",
+      "ℹ️",
+      "نقش حذف‌شده‌ها اعلام شود",
+      "ℹ️",
+      "پخش نقش‌ها 🎭",
       "بازگشت"
     ],
     "attrs": [
       "button#btn-install-app[aria-label]=نصب برنامه روی گوشی",
-      "button#btn-nav-setup[aria-label]=شروع بازی",
-      "a[aria-label]=صفحه سازنده",
-      "a[aria-label]=حمایت مالی از سازنده"
+      "input#setup-name-1[aria-label]=نام بازیکن شماره‌ی ۱",
+      "input#setup-name-1[placeholder]=نام بازیکن ۱",
+      "input#setup-name-2[aria-label]=نام بازیکن شماره‌ی ۲",
+      "input#setup-name-2[placeholder]=نام بازیکن ۲",
+      "input#setup-name-3[aria-label]=نام بازیکن شماره‌ی ۳",
+      "input#setup-name-3[placeholder]=نام بازیکن ۳",
+      "input#setup-name-4[aria-label]=نام بازیکن شماره‌ی ۴",
+      "input#setup-name-4[placeholder]=نام بازیکن ۴",
+      "input#setup-name-5[aria-label]=نام بازیکن شماره‌ی ۵",
+      "input#setup-name-5[placeholder]=نام بازیکن ۵",
+      "input#setup-name-6[aria-label]=نام بازیکن شماره‌ی ۶",
+      "input#setup-name-6[placeholder]=نام بازیکن ۶",
+      "input#setup-name-7[aria-label]=نام بازیکن شماره‌ی ۷",
+      "input#setup-name-7[placeholder]=نام بازیکن ۷",
+      "input#setup-name-8[aria-label]=نام بازیکن شماره‌ی ۸",
+      "input#setup-name-8[placeholder]=نام بازیکن ۸",
+      "button#btn-info-doctor-save[aria-label]=راهنمای این گزینه",
+      "button#btn-info-godfather[aria-label]=راهنمای این گزینه",
+      "button#btn-info-reveal-death[aria-label]=راهنمای این گزینه"
     ],
     "fields": [
-      "setup-players-count#0=8"
+      "setup-players-count#0=8",
+      "setup-name-1#1=بازیکن ۱",
+      "setup-name-2#2=بازیکن ۲",
+      "setup-name-3#3=بازیکن ۳",
+      "setup-name-4#4=بازیکن ۴",
+      "setup-name-5#5=بازیکن ۵",
+      "setup-name-6#6=بازیکن ۶",
+      "setup-name-7#7=بازیکن ۷",
+      "setup-name-8#8=بازیکن ۸"
     ],
     "selects": [
-      "theme-selector: 🌌 نئون کهکشانی | 🕵️ نوآر کلاسیک | 🎞️ سینمای کلاسیک | 🌲 جنگل زمرد | 🔥 شعله سرخ | 🌇 میراژ غروب | 🤖 سایبرپانک | 🧊 اقیانوس یخی"
+      "theme-selector: 🌌 نئون کهکشانی | 🕵️ نوآر کلاسیک | 🎞️ سینمای کلاسیک | 🌲 جنگل زمرد | 🔥 شعله سرخ | 🌇 میراژ غروب | 🤖 سایبرپانک | 🧊 اقیانوس یخی",
+      "setup-doctor-save: هرگز | یک بار | همیشه"
     ]
   }
 }

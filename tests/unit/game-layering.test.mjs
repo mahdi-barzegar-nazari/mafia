@@ -63,9 +63,25 @@ function upwardViolations(graph) {
     return [...graph].flatMap(([file, imports]) => (below.test(file) ? imports.filter((t) => t.startsWith('js/game/')).map((t) => `${file} -> ${t}`) : []));
 }
 
-/** Imports of game/ from anywhere outside game/ (step 3 wires it into ui/ and app/ and drops that test). */
+/** Imports of game/ from anywhere outside game/. */
 function importersOfGame(graph) {
     return [...graph].flatMap(([file, imports]) => (!file.startsWith('js/game/') ? imports.filter((t) => t.startsWith('js/game/')).map((t) => `${file} -> ${t}`) : []));
+}
+
+/**
+ * The files of game/ the rest of the app may import: the public API (`createGame`, `applyAction`, `undo`, `getState`
+ * in engine.js, `serializeGame` and `deserializeGame` in persistence.js, `getModeratorView` in view.js) and the
+ * codes and names the engine shares with its callers (constants.js: the error codes the UI maps to texts).
+ * rules.js, roles.js and json.js are the engine's own parts: nothing outside imports them.
+ */
+const PUBLIC_GAME_FILES = ['js/game/constants.js', 'js/game/engine.js', 'js/game/persistence.js', 'js/game/view.js'];
+
+/** Who may import game/: only ui/ and app/ (the layers above it), and only its public files. */
+function engineUseViolations(graph) {
+    return importersOfGame(graph)
+        .map((edge) => edge.split(' -> '))
+        .filter(([file, target]) => !(/^js\/(ui|app)\//.test(file) && PUBLIC_GAME_FILES.includes(target)))
+        .map(([file, target]) => `${file} -> ${target}`);
 }
 
 const real = buildGraph(ROOT);
@@ -159,10 +175,22 @@ describe('what stays below game/', () => {
     });
 });
 
-describe('this step does not wire the engine into the app', () => {
-    // Step 3 connects game/ to ui/ and app/; it then deletes this test and keeps the rules above.
-    it('nothing outside game/ imports it yet', () => {
-        assert.deepEqual(importersOfGame(real), []);
+describe('the engine is used through its public API only', () => {
+    it('only ui/ and app/ import game/, and only engine.js, persistence.js, view.js and constants.js', () => {
+        assert.deepEqual(engineUseViolations(real), []);
+    });
+
+    it('the screens really use it (so the rule above is not satisfied by nobody importing anything)', () => {
+        const users = importersOfGame(real).map((edge) => edge.split(' -> ')[0]);
+        for (const expected of ['js/ui/setupModel.js', 'js/ui/revealFlow.js', 'js/ui/savedGame.js', 'js/ui/moderator.js']) {
+            assert.ok(users.includes(expected), `${expected} should use the engine`);
+        }
+    });
+
+    it('nothing outside game/ reaches the engine\'s own parts (rules.js, roles.js, json.js)', () => {
+        for (const part of ['js/game/rules.js', 'js/game/roles.js', 'js/game/json.js']) {
+            assert.deepEqual(importersOfGame(real).filter((edge) => edge.endsWith(` -> ${part}`)), [], part);
+        }
     });
 });
 
@@ -207,6 +235,30 @@ describe('the rules, proved on throwaway trees', () => {
         });
         assert.deepEqual(upwardViolations(graph), ['js/core/c.js -> js/game/g.js', 'js/data/d.js -> js/game/g.js', 'js/i18n/i.js -> js/game/g.js', 'js/utils/u.js -> js/game/g.js']);
         assert.equal(importersOfGame(graph).length, 5);
+    });
+
+    it('flags a layer other than ui/ and app/, or a private part of the engine, importing game/', () => {
+        const graph = graphOf({
+            'ui/ok.js': "import '../game/engine.js';\nimport '../game/persistence.js';\nimport '../game/view.js';\nimport '../game/constants.js';\n",
+            'app/ok.js': "import '../game/engine.js';\n",
+            'ui/private.js': "import '../game/rules.js';\nimport '../game/roles.js';\nimport '../game/json.js';\n",
+            'platform/p.js': "import '../game/engine.js';\n",
+            'utils/u.js': "import '../game/constants.js';\n",
+            'game/engine.js': '',
+            'game/persistence.js': '',
+            'game/view.js': '',
+            'game/constants.js': '',
+            'game/rules.js': '',
+            'game/roles.js': '',
+            'game/json.js': ''
+        });
+        assert.deepEqual(engineUseViolations(graph), [
+            'js/platform/p.js -> js/game/engine.js',
+            'js/ui/private.js -> js/game/json.js',
+            'js/ui/private.js -> js/game/roles.js',
+            'js/ui/private.js -> js/game/rules.js',
+            'js/utils/u.js -> js/game/constants.js'
+        ]);
     });
 
     it('lets the allowed directions through', () => {

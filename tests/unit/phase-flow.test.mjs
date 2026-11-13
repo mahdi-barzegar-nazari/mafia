@@ -1,7 +1,7 @@
 /**
- * The phase machine of this step end to end: welcome -> setup -> back to welcome, through the real seams
+ * The phase machine end to end: welcome -> setup -> back to welcome, through the real seams
  * (`wireApp` installs the real handler and the real renderer behind `dispatch` and `commitState`) and a fake page
- * with the two screens of index.html. The rule it protects: a phase is the only thing that decides which screen
+ * with the welcome and setup screens of index.html (tests/unit/game-flow.test.mjs covers the screens of a game). The rule it protects: a phase is the only thing that decides which screen
  * is shown, and an unknown phase changes nothing, so step 2 can add phases without restructuring.
  */
 import assert from 'node:assert/strict';
@@ -123,9 +123,20 @@ describe('an unknown phase changes nothing', () => {
     it('NAVIGATE to anything that is not a screen of the app is ignored: no state change, no redraw', () => {
         go('setup');
         const before = renders;
-        for (const phase of ['reveal', 'vote', 'night', '', 'WELCOME', ' setup', 'constructor', '__proto__', undefined, null, 7, ['setup'], { toString: () => 'setup' }]) {
+        for (const phase of ['vote', 'night', '', 'WELCOME', ' setup', 'constructor', '__proto__', undefined, null, 7, ['setup'], { toString: () => 'setup' }]) {
             go(phase);
             assert.equal(gameState.phase, 'setup', String(phase));
+        }
+        assert.equal(renders, before);
+        assert.deepEqual(visible(), ['setup']);
+    });
+
+    it('the screens of a game (reveal, moderator) cannot be entered through NAVIGATE while there is no game', () => {
+        go('setup');
+        const before = renders;
+        for (const phase of ['reveal', 'moderator']) {
+            go(phase);
+            assert.equal(gameState.phase, 'setup', phase);
         }
         assert.equal(renders, before);
         assert.deepEqual(visible(), ['setup']);
@@ -136,7 +147,7 @@ describe('an unknown phase changes nothing', () => {
         const before = renders;
         const hooked = [];
         setBeforePhaseChange((from, to) => hooked.push(`${from}->${to}`));
-        for (const phase of ['reveal', 'night', '', 'WELCOME', 'constructor', '__proto__', undefined, null, 7, ['setup']]) {
+        for (const phase of ['vote', 'night', '', 'WELCOME', 'constructor', '__proto__', undefined, null, 7, ['setup']]) {
             setPhase(phase);
             assert.equal(gameState.phase, 'setup', String(phase));
         }

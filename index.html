@@ -65,6 +65,7 @@
             <span class="play-button-label" data-i18n="welcome.start.label">شروع بازی</span>
             <span class="play-button-caption" data-i18n="welcome.start.caption">یک گوشی، در دست راوی</span>
         </div>
+        <button type="button" id="btn-resume-game" class="btn btn-ghost hidden" data-i18n="welcome.resume">ادامه‌ی بازی</button>
         <div class="lang-switch-wrap" dir="ltr">
             <div class="lang-switch" role="group" aria-label="زبان" data-i18n-attr="aria-label:welcome.lang.aria">
                 <button type="button" id="btn-lang-fa" class="btn btn-ghost btn-sm lang-btn" lang="fa" data-lang="fa" aria-pressed="true">فارسی</button>
@@ -82,7 +83,67 @@
             <input type="text" id="setup-players-count" class="input-control" value="8" inputmode="numeric" autocomplete="off" aria-describedby="players-limit-hint">
             <div id="players-limit-hint" class="field-hint"></div>
         </div>
+        <fieldset class="input-group" aria-describedby="names-limit-hint">
+            <legend class="label-text" data-i18n="setup.names.label">نام بازیکنان:</legend>
+            <div id="setup-names" class="name-list"></div>
+            <div id="names-limit-hint" class="field-hint"></div>
+        </fieldset>
+        <div class="input-group">
+            <div class="label-text label-with-info">
+                <label for="setup-doctor-save" id="lbl-doctor-save" data-i18n="setup.doctorSave.label">دکتر خودش را نجات دهد:</label>
+                <button type="button" id="btn-info-doctor-save" class="info-btn" data-info="doctorSelfSave" aria-label="راهنمای این گزینه" aria-labelledby="lbl-doctor-save btn-info-doctor-save" aria-haspopup="dialog" data-i18n-attr="aria-label:a11y.infoButton">ℹ️</button>
+            </div>
+            <select id="setup-doctor-save" class="input-control">
+                <option value="never" data-i18n="setup.doctorSave.never">هرگز</option>
+                <option value="once" data-i18n="setup.doctorSave.once" selected>یک بار</option>
+                <option value="always" data-i18n="setup.doctorSave.always">همیشه</option>
+            </select>
+        </div>
+        <div class="toggle-item">
+            <div class="toggle-label-wrap">
+                <span id="lbl-godfather" data-i18n="setup.godfather.label">پدرخوانده</span>
+                <button type="button" id="btn-info-godfather" class="info-btn" data-info="godfather" aria-label="راهنمای این گزینه" aria-labelledby="lbl-godfather btn-info-godfather" aria-haspopup="dialog" data-i18n-attr="aria-label:a11y.infoButton">ℹ️</button>
+            </div>
+            <label class="switch"><input type="checkbox" id="setup-godfather" aria-labelledby="lbl-godfather" aria-describedby="godfather-hint"><span class="slider"></span></label>
+        </div>
+        <div id="godfather-hint" class="field-hint toggle-hint"></div>
+        <div class="toggle-item">
+            <div class="toggle-label-wrap">
+                <span id="lbl-reveal-death" data-i18n="setup.revealDeath.label">نقش حذف‌شده‌ها اعلام شود</span>
+                <button type="button" id="btn-info-reveal-death" class="info-btn" data-info="revealRoleOnDeath" aria-label="راهنمای این گزینه" aria-labelledby="lbl-reveal-death btn-info-reveal-death" aria-haspopup="dialog" data-i18n-attr="aria-label:a11y.infoButton">ℹ️</button>
+            </div>
+            <label class="switch"><input type="checkbox" id="setup-reveal-death" aria-labelledby="lbl-reveal-death" checked><span class="slider"></span></label>
+        </div>
+        <button type="button" id="btn-deal" class="btn btn-primary" data-i18n="setup.deal">پخش نقش‌ها 🎭</button>
         <button type="button" id="btn-back-welcome-2" class="btn btn-ghost" data-i18n="setup.back">بازگشت</button>
+    </section>
+
+    <section id="screen-reveal" class="screen-view hidden">
+        <p id="reveal-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+        <div id="reveal-gate" class="reveal-panel hidden">
+            <p id="reveal-progress" class="reveal-progress"></p>
+            <div class="reveal-icon" aria-hidden="true">📱</div>
+            <h2 id="reveal-gate-title"></h2>
+            <p data-i18n="reveal.gate.hint">فقط وقتی گوشی دست خودتان است دکمه را بزنید؛ نباید کسی دیگر نقش شما را ببیند.</p>
+            <button type="button" id="btn-reveal-show" class="btn btn-primary reveal-action"></button>
+            <button type="button" id="btn-reveal-back" class="btn btn-ghost" data-i18n="reveal.back">بازگشت</button>
+        </div>
+        <div id="reveal-card" class="reveal-panel hidden">
+            <div id="reveal-card-body"></div>
+            <p data-i18n="reveal.card.note">نقش را که دیدید، پنهانش کنید و گوشی را به نفر بعدی بدهید.</p>
+            <button type="button" id="btn-reveal-hide" class="btn btn-primary reveal-action"></button>
+        </div>
+    </section>
+
+    <section id="screen-moderator" class="screen-view hidden">
+        <h2 data-i18n="moderator.title">فهرست راوی</h2>
+        <p data-i18n="moderator.hint">این فهرست فقط برای راوی است. نقش‌ها تا وقتی نخواهید پنهان می‌مانند.</p>
+        <ul id="moderator-list" class="moderator-list"></ul>
+        <button type="button" id="btn-roles-toggle" class="btn btn-ghost" data-i18n="moderator.roles.show">نمایش نقش‌ها</button>
+        <h3 class="moderator-rules-title" data-i18n="moderator.rules.title">قوانین این بازی</h3>
+        <ul id="moderator-rules" class="moderator-rules"></ul>
+        <p data-i18n="moderator.next">صفحه‌های شب و روز در نسخه‌ی بعدی می‌آیند.</p>
+        <button type="button" id="btn-new-game" class="btn btn-rose" data-i18n="moderator.newGame">بازی جدید</button>
     </section>
 </main>
 
@@ -92,6 +153,14 @@
         <p id="confirm-modal-text" data-i18n="confirm.text">مطمئن هستید؟</p>
         <button type="button" id="btn-confirm-yes" class="btn btn-rose" data-i18n="confirm.yes">بله</button>
         <button type="button" id="btn-confirm-no" class="btn btn-ghost" data-i18n="confirm.no">انصراف</button>
+    </div>
+</div>
+
+<div id="info-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
+    <div class="modal-card text-start">
+        <h3 id="info-modal-title" class="info-modal-title"></h3>
+        <p id="info-modal-desc" class="info-modal-desc"></p>
+        <button type="button" id="btn-info-modal-close" class="btn btn-primary" data-i18n="modal.info.close">متوجه شدم</button>
     </div>
 </div>
 

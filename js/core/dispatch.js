@@ -6,6 +6,9 @@
  * that dispatch never depend on the modules that handle.
  */
 
+import { INFO_KEYS } from './config.js';
+import { t } from '../i18n/index.js';
+
 let handler = null;
 
 /** Install the function that runs every action. */
@@ -16,4 +19,12 @@ export function setDispatchHandler(fn) {
 export function dispatch(action) {
     if (!handler) throw new Error(`dispatch(${action && action.type}) ran before a handler was installed; call wireApp() first.`);
     handler(action);
+}
+
+/** Open the help modal with the title and text of `key` (one of `INFO_KEYS`); any other key does nothing. */
+export function showInfoModal(key) {
+    if (!INFO_KEYS.includes(key)) return;
+    document.getElementById('info-modal-title').textContent = t(`info.${key}.title`);
+    document.getElementById('info-modal-desc').textContent = t(`info.${key}.text`);
+    dispatch({type: 'OPEN_MODAL', payload: 'info-modal'});
 }

@@ -2,22 +2,58 @@
 
 ## Unreleased
 
-Step 2 of 4: the pure rules engine and its tests. **No screens, no visible text, no catalog key:** the engine is not wired into the app, so what a person sees is unchanged.
+Step 3A of 4: the setup form, the hand-off of the roles, the moderator's list, and save and resume. The night and day screens (step 3B) are **not** in this version. Step 2's engine (below) is now wired into the app.
 
-### Added
+### Step 3A of 4: the game screens
+
+#### Added
+
+- **Four phases** (`welcome`, `setup`, `reveal`, `moderator`): `VALID_PHASES`, a `<section>` each in `index.html`, bindings, actions (`DEAL_GAME`, `RESUME_GAME`, `REVEAL_SHOW`, `REVEAL_HIDE`, `CONFIRM_LEAVE_REVEAL`, `CONFIRM_NEW_GAME`, `TOGGLE_ROLES`, `HIDE_SECRETS`) and renderers. `reveal` and `moderator` count as a game in progress, so the language switch is locked there.
+- **The setup form.** One name field per player (default «بازیکن N» / "Player N", at most 24 letters, default names follow a language change), the doctor's self-save select (never, once, always; default once), the godfather switch (off by default, disabled with a hint below the player count the engine allows, turns itself off if the count drops), the "announce the role of the eliminated" switch (default on), a short help (i) for each option, "Deal roles" and back. Names and options are not remembered between games. The game is made by `createGame` with a `crypto`-based random; every engine error code is shown as a sentence (catalog key) on the field that caused it, and never as a code.
+- **The reveal.** One player at a time: a hand-off gate ("Hand the phone to {name}", "I am {name}"), then the role card (the role, a line on what it does, the other members of the team for the mafia and the godfather, and for the godfather the line that the detective sees him as innocent), then "Hide and pass on". The card is built only after "I am" and **removed from the page** (not hidden) when it is hidden, when the page goes out of sight, and whenever any other screen is drawn. Progress is saved at every hand-off; a reload returns to the next player's gate, never to a card. Focus moves to each step's heading and one polite live line announces the step (never the role).
+- **The moderator's screen (temporary).** The players with roles hidden until "Show roles" (hidden again on every open and when the page goes out of sight), the rules in force one line each, and "New game" after a question.
+- **Save and resume.** `gameState.game` and `gameState.reveal`; `persist()` writes whenever a game exists. "Resume game" on the welcome screen only when a valid save exists. A save is accepted only if the game replays through `deserializeGame`; a damaged, tampered or other-version save is ignored without a message. Dealing over a save asks first (`confirm.discard.*`).
+- **The help dialog** (`#info-modal`, `showInfoModal` in `core/dispatch.js`, `INFO_KEYS` in `core/config.js`), the same pattern as Spyfall's, with Mafia's three option texts.
+- **66 new catalog keys** (44 to 110) in `fa.js` and `en.js` (the setup form, `reveal.*`, `role.<id>.name/does`, `moderator.*`, `info.*`, `confirm.discard.*`, `welcome.resume`), with the same keys and placeholders in both languages.
+- **New files:** `ui/setupModel.js`, `ui/revealFlow.js`, `ui/roleTexts.js`, `ui/savedGame.js` (pure), `ui/reveal.js`, `ui/moderator.js`, `ui/resume.js`; tests `setup-model`, `setup-form`, `reveal-flow`, `saved-game`, `game-flow` (unit), `game-flow` and `game-screens` (end to end), `tests/e2e/helpers/game.mjs`, and `tests/e2e/take-screenshots.mjs` with its pictures in `tests/e2e/screenshots/` (360x740, Persian and English, the dark default theme; not shipped).
+- **Tests.** Unit: 837 to 1000. End to end: 199 to 275 (the whole flow for 3, 8 and 20 players in both languages; every card against the saved game; the role text absent from the page after "hide"; the moderator's list hidden by default and on `pagehide` and `visibilitychange`; reload mid-reveal, on a card and on the moderator's screen; the resume button; eight kinds of damaged save; the godfather switch; each error on its own field; the language lock; fa to en to fa; the new screens in all 8 themes and both languages with overflow, finger-size and contrast checks; a run with the keyboard only; a whole game with no network). Ten mutations were each run against their own tests and each made one fail.
+
+#### Changed
+
+- `SAVE_VERSION` is 2 (the state holds `game` and `reveal`). A version-1 record is ignored; none was ever written.
+- `core/storage.js` stays below `game/`: it returns the raw record (`readSavedState`) and `ui/savedGame.js` validates the game. `persist()` writes only when a game exists.
+- The setup placeholder (one field, "nothing starts") is replaced by the form. `tests/unit/game-layering.test.mjs` no longer says "nothing outside `game/` imports it" but "only `ui/` and `app/` import its public files (`constants`, `engine`, `persistence`, `view`)".
+- `tests/e2e/fixtures/persian-baseline.json`: the `setup` part regenerated with `tests/e2e/fixtures/make-persian-baseline.mjs`; the `welcome` part is identical. `tests/e2e/helpers/record.mjs` leaves out the resume button and what lies in a hidden screen (name fields, help buttons, the doctor select).
+- Tests updated for the new screens: `bindings`, `lang-round-trip`, `phase`, `phase-flow`, `lang-switch`, `screens`, `storage-state`, `config` (unit); `smoke`, `players-count` (the finger test now waits for the page to stand still and taps a visible control), `offline` (a whole game offline) (end to end); stale comments in `modal.test.mjs` and `confirm-modal.test.mjs`.
+- `README.md` and `docs/architecture.md`: status, features, phases, state model, storage keys, layering and test counts for step 3A. `docs/game-rules.md` is untouched.
+
+#### Removed
+
+- The placeholder setup screen and its wording; the "dormant confirm dialog" note (it is used now).
+
+#### Known
+
+- A quick double tap on "Hide and pass on" can press the next gate's "I am" button, which sits in the same place, and show the next card to the person still holding the phone. Left alone on purpose; see `docs/architecture.md`.
+- The `_source` line the Persian baseline script writes still says "step 1".
+
+### Step 2 of 4: the pure rules engine
+
+The pure rules engine and its tests. **No screens, no visible text, no catalog key:** the engine is not wired into the app, so what a person sees is unchanged.
+
+#### Added
 
 - **The rules engine** in `js/game/` (`constants`, `json`, `rules`, `roles`, `engine`, `view`, `persistence`) and `js/data/roles.js`: five roles (mafia, godfather, doctor, detective, citizen), the role table for 3 to 20 players, the night (mafia team, doctor, detective), the vote, the win rule, exact undo and save/load. It is event-sourced (a game is its setup plus its actions; the state is derived by replay), pure (no DOM, storage, timers, `Date` or `Math.random`; randomness is an injected function) and plain JSON.
 - **Rule options:** `doctorSelfSave` (`never`, `once`, `always`; default `once`), `godfather` (default off; needs 6 or more players) and `revealRoleOnDeath` (default on).
 - **`docs/game-rules.md`:** the rules exactly as implemented (roles, the table, options, the night, the vote, winning, undo, the save format, every error code). `docs/architecture.md` describes `game/` and `data/`, the purity and layering rules and why event sourcing makes undo exact.
 - **Tests.** 303 new unit tests, 837 in all (534 before): one `game-*.test.mjs` file per module, a seeded fuzz of 396 whole playthroughs (3 to 20 players, every option) checked against an independent model, and a layering and purity test (what `game/` may import, a source scan for the DOM, storage, timers, `Date` and `Math.random`, and no empty directory or `.gitkeep`). The 199 end-to-end tests are unchanged.
 
-### Changed
+#### Changed
 
 - `js/i18n/en.js`: the glossary comment lists the engine's terms (mafia, godfather, doctor, detective, citizen, night, day, vote, eliminated) with the Persian term to use later, written in Latin letters because `tests/unit/i18n-en.test.mjs` allows no Persian character in that file; the same terms in Persian script are in `docs/game-rules.md`. Comment only; no catalog key.
 - `tests/unit/import-cycles.test.mjs`: the title of the throwaway-tree describe no longer says the real `game/` and `data/` are empty (wording only).
 - `README.md` and `docs/architecture.md`: status, roadmap, file list, layering and test counts for step 2.
 
-### Removed
+#### Removed
 
 - The "empty on purpose" wording for `game/` and `data/` (they hold real files now, so no `.gitkeep` is needed).
 

@@ -54,8 +54,8 @@ describe('isMatchInProgress', () => {
         }
     });
 
-    it('covers every phase the app knows (a new phase has to be placed on purpose: step 2 lists its match phases here)', () => {
-        assert.deepEqual(INSIDE_A_MATCH, []);
+    it('covers every phase the app knows (a new phase has to be placed on purpose: the reveal and the moderator screens belong to a game)', () => {
+        assert.deepEqual(INSIDE_A_MATCH, ['reveal', 'moderator']);
     });
 
     it('counts a phase it does not know as a match in progress, so a damaged state can never unlock the switch', () => {
@@ -74,6 +74,17 @@ describe('isMatchInProgress', () => {
             assert.equal(getLang(), 'fa', 'the switch is locked in the new phase');
         } finally {
             VALID_PHASES.delete('night');
+        }
+    });
+});
+
+describe('SET_LANG: refused while a game is on screen', () => {
+    it('the reveal screen and the moderator screen keep the language the game was dealt in', () => {
+        for (const phase of ['reveal', 'moderator']) {
+            gameState.phase = phase;
+            handleAction({ type: 'SET_LANG', payload: 'en' });
+            assert.equal(getLang(), 'fa', phase);
+            assert.equal(env.storage.has('mafia_lang'), false, `${phase}: nothing is saved either`);
         }
     });
 });

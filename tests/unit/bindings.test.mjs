@@ -12,14 +12,31 @@ import { SAVE_VERSION, gameState, session } from '../../js/core/state.js';
 import { SAVE_KEY } from '../../js/core/storage.js';
 import { elements, parseHtml } from './helpers/htmlScan.mjs';
 import { FakeElement, installFakeEnv } from './helpers/fakeEnv.mjs';
-import { makePlayers, useGameHarness } from './helpers/harness.mjs';
+import { newGame } from './helpers/gameKit.mjs';
+import { useGameHarness } from './helpers/harness.mjs';
 
 const env = installFakeEnv();
 const { bindEvents } = await import('../../js/ui/bindings.js');
 
-const CONTROL_IDS = ['theme-selector', 'btn-nav-setup', 'btn-back-welcome-2', 'setup-players-count', 'btn-confirm-yes', 'btn-confirm-no'];
+const CONTROL_IDS = [
+    'theme-selector',
+    'btn-nav-setup',
+    'btn-resume-game',
+    'btn-back-welcome-2',
+    'setup-players-count',
+    'btn-deal',
+    'btn-info-modal-close',
+    'btn-reveal-show',
+    'btn-reveal-hide',
+    'btn-reveal-back',
+    'btn-roles-toggle',
+    'btn-new-game',
+    'btn-confirm-yes',
+    'btn-confirm-no'
+];
 
 let langButtons;
+let infoButtons;
 const recorded = useGameHarness(env, {
     setup: () => {
         for (const id of CONTROL_IDS) env.el(id);
@@ -29,6 +46,12 @@ const recorded = useGameHarness(env, {
             return button;
         });
         env.stubQuery('.lang-btn', langButtons);
+        infoButtons = ['doctorSelfSave', 'godfather', 'revealRoleOnDeath'].map((key) => {
+            const button = new FakeElement(`btn-info-${key}`, 'button');
+            button.dataset.info = key;
+            return button;
+        });
+        env.stubQuery('.info-btn', infoButtons);
         document.visibilityState = 'visible';
     },
     teardown: () => {
@@ -78,6 +101,40 @@ describe('bindEvents: one control, one action', () => {
         assert.equal(field.listeners.change.length, 1);
         field.listeners.change[0]();
         assert.deepEqual(actions(), [{ type: 'SET_PLAYERS_COUNT' }]);
+    });
+
+    it('the resume button resumes, the deal button deals', () => {
+        bindEvents();
+        env.el('btn-resume-game').onclick();
+        env.el('btn-deal').onclick();
+        assert.deepEqual(actions(), [{ type: 'RESUME_GAME' }, { type: 'DEAL_GAME' }]);
+    });
+
+    it('the reveal buttons show the card, hide it and pass on, and ask to leave', () => {
+        bindEvents();
+        env.el('btn-reveal-show').onclick();
+        env.el('btn-reveal-hide').onclick();
+        env.el('btn-reveal-back').onclick();
+        assert.deepEqual(actions(), [{ type: 'REVEAL_SHOW' }, { type: 'REVEAL_HIDE' }, { type: 'CONFIRM_LEAVE_REVEAL' }]);
+    });
+
+    it('the moderator buttons toggle the roles and ask for a new game', () => {
+        bindEvents();
+        env.el('btn-roles-toggle').onclick();
+        env.el('btn-new-game').onclick();
+        assert.deepEqual(actions(), [{ type: 'TOGGLE_ROLES' }, { type: 'CONFIRM_NEW_GAME' }]);
+    });
+
+    it('each (i) button opens the help text of its own option, and the help modal closes', () => {
+        bindEvents();
+        env.el('info-modal-title');
+        env.el('info-modal-desc');
+        for (const button of infoButtons) button.onclick();
+        env.el('btn-info-modal-close').onclick();
+        const opened = actions().filter((a) => a.type === 'OPEN_MODAL');
+        assert.deepEqual(opened, [1, 2, 3].map(() => ({ type: 'OPEN_MODAL', payload: 'info-modal' })));
+        assert.equal(env.el('info-modal-title').textContent.length > 0, true, 'the title was written');
+        assert.deepEqual(actions().at(-1), { type: 'CLOSE_MODAL', payload: 'info-modal' });
     });
 
     it('wires nothing by itself: no action is dispatched while binding', () => {
@@ -147,17 +204,31 @@ describe('bindEvents: the page itself', () => {
         assert.deepEqual(env.logs.wakeLocks, ['screen']);
     });
 
-    it('saves a match when the page is hidden for good (pagehide), in the versioned record', () => {
+    it('hides the secrets (a role card, the roles of the list) when the page goes out of sight, and only then', async () => {
         bindEvents();
-        gameState.players = makePlayers(3);
-        const [{ fn }] = listenersOf('window', 'pagehide');
-        fn();
-        const saved = JSON.parse(env.storage.get(SAVE_KEY));
-        assert.equal(saved.version, SAVE_VERSION);
-        assert.equal(saved.state.players.length, 3);
+        const [{ fn }] = listenersOf('document', 'visibilitychange');
+        document.visibilityState = 'visible';
+        await fn();
+        assert.deepEqual(actions(), [], 'nothing is hidden when the page comes back');
+        document.visibilityState = 'hidden';
+        await fn();
+        assert.deepEqual(actions(), [{ type: 'HIDE_SECRETS' }]);
     });
 
-    it('saves nothing on pagehide while there is no match (welcome or setup)', () => {
+    it('hides the secrets and saves the game when the page is hidden for good (pagehide), in the versioned record', () => {
+        bindEvents();
+        gameState.game = newGame(3);
+        gameState.phase = 'reveal';
+        const [{ fn }] = listenersOf('window', 'pagehide');
+        fn();
+        assert.deepEqual(actions(), [{ type: 'HIDE_SECRETS' }]);
+        const saved = JSON.parse(env.storage.get(SAVE_KEY));
+        assert.equal(saved.version, SAVE_VERSION);
+        assert.deepEqual(saved.state.game, gameState.game);
+        assert.equal(saved.state.phase, 'reveal');
+    });
+
+    it('saves nothing on pagehide while there is no game (welcome or setup)', () => {
         bindEvents();
         for (const phase of ['welcome', 'setup']) {
             gameState.phase = phase;

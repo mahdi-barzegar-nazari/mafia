@@ -5,14 +5,13 @@
  *
  *  - Persian -> English -> Persian gives back exactly the page it started from, however often it is repeated;
  *  - in English no element keeps a Persian text, and the two language buttons keep their own fixed names;
- *  - what JS writes by itself (the limit hint, the pressed button, the toasts) follows the language as main.js
- *    arranges it;
+ *  - what JS writes by itself (the limit hint, the pressed button, the toasts, the default player names) follows
+ *    the language as main.js arranges it;
  *  - the person's typing and the saved settings are not touched by a switch.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
-import { VALID_PHASES } from '../../js/core/config.js';
 import { en } from '../../js/i18n/en.js';
 import { fa } from '../../js/i18n/fa.js';
 import { gameState } from '../../js/core/state.js';
@@ -26,7 +25,7 @@ const { setDispatchHandler, dispatch } = await import('../../js/core/dispatch.js
 const { getLang, onLangChange, setLang } = await import('../../js/i18n/index.js');
 const { clearToasts, showToast } = await import('../../js/ui/feedback.js');
 const { syncLangSwitch } = await import('../../js/ui/langSwitch.js');
-const { updateSetupLimitHints } = await import('../../js/ui/setup.js');
+const { readNames, relocalizeNameInputs, syncNameInputs, updateSetupLimitHints } = await import('../../js/ui/setup.js');
 
 const PERSIAN = /[؀-ۿ]/;
 const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
@@ -59,6 +58,7 @@ function buildPage() {
 
     env.el('toast-container');
     env.el('players-limit-hint');
+    env.el('setup-names');
     env.el('setup-players-count').value = '8';
     document.documentElement = { lang: 'fa', dir: 'rtl', classList: { remove() {} } };
 }
@@ -68,6 +68,7 @@ function snapshot() {
     return {
         texts: translated.map((el) => [el.id || el.tagName, el.textContent, { ...el.attributes }]),
         hint: env.el('players-limit-hint').textContent,
+        names: readNames(),
         pressed: buttons.map((b) => b.getAttribute('aria-pressed')),
         buttonNames: buttons.map((b) => b.textContent),
         html: { lang: document.documentElement.lang, dir: document.documentElement.dir }
@@ -83,9 +84,11 @@ useGameHarness(env, {
             syncLangSwitch();
             clearToasts();
             updateSetupLimitHints();
+            relocalizeNameInputs();
         });
         syncLangSwitch();
         updateSetupLimitHints();
+        syncNameInputs(4);
     },
     teardown: () => {
         stopListening();
@@ -156,6 +159,18 @@ describe('Persian -> English', () => {
         assert.equal(snapshot().hint, '3 to 20 players');
     });
 
+    it('writes the default names in English, and leaves a name the person typed alone', () => {
+        const fields = env.el('setup-names').children;
+        fields[1].value = 'Sara';
+        assert.deepEqual(readNames(), ['بازیکن ۱', 'Sara', 'بازیکن ۳', 'بازیکن ۴']);
+        switchTo('en');
+        assert.deepEqual(readNames(), ['Player 1', 'Sara', 'Player 3', 'Player 4']);
+        assert.equal(fields[0].getAttribute('placeholder'), 'Player 1 name');
+        switchTo('fa');
+        assert.deepEqual(readNames(), ['بازیکن ۱', 'Sara', 'بازیکن ۳', 'بازیکن ۴']);
+        assert.equal(fields[0].getAttribute('placeholder'), 'نام بازیکن ۱');
+    });
+
     it('removes a toast that is on screen, so none is left in the old language', () => {
         showToast('پیام قدیمی');
         assert.deepEqual(env.toasts(), ['پیام قدیمی']);
@@ -211,14 +226,11 @@ describe('what a switch leaves alone', () => {
     });
 
     it('everything, when the switch is refused (a match is running, or the code is not a language)', () => {
-        VALID_PHASES.add('night');
-        try {
-            gameState.phase = 'night';
+        for (const phase of ['reveal', 'moderator']) {
+            gameState.phase = phase;
             const before = snapshot();
             switchTo('en');
-            assert.deepEqual(snapshot(), before);
-        } finally {
-            VALID_PHASES.delete('night');
+            assert.deepEqual(snapshot(), before, phase);
         }
         gameState.phase = 'welcome';
         const before = snapshot();
@@ -241,10 +253,10 @@ describe('main.js arranges the same follow-up (the test above copies it, so it i
         assert.match(mainSource, /onLangChange\(refreshLanguageDependentUi\)/);
     });
 
-    it('which does exactly the three things the test does', () => {
+    it('which does exactly the four things the test does', () => {
         assert.ok(body, 'refreshLanguageDependentUi not found in main.js');
         const calls = [...body[1].matchAll(/(\w+)\(\);/g)].map((m) => m[1]);
-        assert.deepEqual(calls, ['syncLangSwitch', 'clearToasts', 'updateSetupLimitHints']);
+        assert.deepEqual(calls, ['syncLangSwitch', 'clearToasts', 'updateSetupLimitHints', 'relocalizeNameInputs']);
     });
 
     it('and runs once at start-up for the first paint, before the first screen is used', () => {
@@ -252,5 +264,6 @@ describe('main.js arranges the same follow-up (the test above copies it, so it i
         assert.ok(start);
         assert.match(start[1], /syncLangSwitch\(\);/);
         assert.match(start[1], /updateSetupLimitHints\(\);/);
+        assert.match(start[1], /resetSetupForm\(\);/);
     });
 });

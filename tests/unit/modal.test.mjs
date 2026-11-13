@@ -1,8 +1,8 @@
 /**
  * The dialog machinery that every later screen will lean on: the keyboard focus trap (ui/focusTrap.js) and the
  * OPEN_MODAL / CLOSE_MODAL actions (app/actions.js) that hide the page behind a dialog and give the focus back
- * when it closes. The shell has one dialog, the generic confirm modal, which nothing opens yet; it is kept so
- * that this machinery stays working and tested. Everything runs on the fake page of helpers/fakeEnv.mjs.
+ * when it closes. There are two dialogs: the generic confirm modal (the game's "are you sure?" questions) and the
+ * help modal of the setup options; this machinery serves both. Everything runs on the fake page of helpers/fakeEnv.mjs.
  */
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';

@@ -25,12 +25,15 @@ Mafia (مافیا) is the classic party game in which a hidden minority tries to
 
 It ships as native ES modules, a service worker and plain CSS, with no framework and no bundler.
 
-> **Status: step 2 of 4, rules engine done, no game screens yet.** The app shell of step 1 is complete and tested, and the **rules engine** now exists as pure, tested code (`js/game/`, `js/data/`; the rules are in [`docs/game-rules.md`](./docs/game-rules.md)): roles, the night, the vote, winning, undo and saving. The engine is not wired into the app yet, so the app still shows only the welcome screen and a placeholder setup screen that asks for the number of players (3 to 20). The game screens arrive in the next steps, on top of the infrastructure described below.
+> **Status: step 3A of 4: the game can be set up, dealt and handed out; the night and day screens are not there yet.** The app shell of step 1 and the **rules engine** of step 2 (`js/game/`, `js/data/`; the rules are in [`docs/game-rules.md`](./docs/game-rules.md)) are now joined by the first game screens: the **setup form** (a name per player and the three rule options), the **hand-off of the roles** (the phone goes from player to player; each sees only their own card), the **moderator's list** and **save and resume**. The moderator's screen is temporary: it lists the players and the rules, and the night and day screens (step 3B) come next.
 
-## What the shell has
+## What the app has
 
 - **Welcome screen.** The name, a one-line tagline, the round play button, the language switch, the theme selector, the credit line and, behind a long press on the title, the version line.
-- **Setup placeholder.** One validated field (the number of players, 3 to 20) with its hint, and a back button. Nothing starts.
+- **Setup form.** The number of players (3 to 20), one name field per player (default «بازیکن N» / "Player N", at most 24 letters), the doctor's self-save rule (never, once, always), the godfather (off by default; the switch is disabled below 6 players and turns itself off if the count drops), whether the role of an eliminated player is announced, a help (i) button for each option, and "Deal roles". The engine checks the game; every refusal is shown as a sentence on the field that caused it. Names and options are not remembered between games.
+- **Hand-off of the roles.** One player at a time: "Hand the phone to {name}", then "I am {name}" shows the role card (the role, a line on what it does, and, for the mafia team, who else is on it; the godfather's card says the detective sees him as innocent). "Hide and pass on" takes the card **out of the page** and moves to the next gate. The language is locked from the first gate on.
+- **The moderator's list (temporary).** The players, with roles hidden until "Show roles" is pressed (hidden again when the page goes out of sight), the rules in force, and "New game".
+- **Save and resume.** Once a game is dealt it is saved after every hand-off (`mafia_full_state_master`). The welcome screen shows "Resume game" only when a valid save exists; resuming a hand-off returns to the next player's gate, never straight to a card. A damaged or tampered save is ignored.
 - **Persian and English.** Persian is the default; English is one tap away on the welcome screen (see [Switch the language](#switch-the-language)). A person who chose English never sees the Persian page flash first.
 - **8 themes**, one token system, dynamic viewport sizing (`100dvh`) and safe-area padding for edge-to-edge phones. Every colour comes from the theme tokens; only the colours that carry a meaning stay the same in every theme.
 - **Offline-first and installable.** A versioned service worker precaches every shipped file; a one-line install hint covers the browsers that have no install button (iPhone, iPad, Firefox for Android).
@@ -56,9 +59,9 @@ npm run preview        # serves ./dist to test real offline caching
 
 ```bash
 npm install            # dev tooling only: ESLint, Prettier, Playwright (this also writes package-lock.json: commit it, CI runs `npm ci`)
-npm test               # 837 unit tests (built-in node:test, no dependencies): the app shell and the rules engine
+npm test               # 1000 unit tests (built-in node:test, no dependencies): the app shell, the rules engine and the game screens
 npx playwright install chromium
-npm run test:e2e       # 199 real-browser tests of the production build: smoke test, offline first load, language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint
+npm run test:e2e       # 275 real-browser tests of the production build: smoke test, offline first load (also a whole game), language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint, the whole game flow, and the new screens in all eight themes and with the keyboard only
 npm run lint
 ```
 
@@ -66,7 +69,7 @@ Run the unit and the browser suites one after the other, not at the same time: t
 
 ### Switch the language
 
-On the welcome screen tap **English** (or **فارسی** to go back). The two buttons always sit in the same left-to-right order, each written in its own language, so you can find yours even when the page is in the other one. The choice is remembered on the device (`localStorage` key `mafia_lang`) and applies at the next visit too. Persian stays the default; the browser's language is never used to guess. Once a game exists (step 2) the language can only be changed outside a game: a running game keeps the language it was started in.
+On the welcome screen tap **English** (or **فارسی** to go back). The two buttons always sit in the same left-to-right order, each written in its own language, so you can find yours even when the page is in the other one. The choice is remembered on the device (`localStorage` key `mafia_lang`) and applies at the next visit too. Persian stays the default; the browser's language is never used to guess. Once a game is dealt, the language can only be changed outside the game (on the welcome screen): the reveal and the moderator's screen do not offer the switch, and the app ignores a request to change the language while a game is on screen.
 
 ## Architecture
 
@@ -120,8 +123,9 @@ Pushes to `main` run [`deploy.yml`](./.github/workflows/deploy.yml): unit tests,
 ## Roadmap
 
 - [x] Step 1: the app shell: infrastructure, welcome and setup placeholder, tests, documentation
-- [x] Step 2: the rules engine (this version): roles, night, vote, win, undo, save/load, tests, `docs/game-rules.md`; no screens
-- [ ] Steps 3 and 4: the game screens and the finish, built on the shell and the engine (not started)
+- [x] Step 2: the rules engine: roles, night, vote, win, undo, save/load, tests, `docs/game-rules.md`; no screens
+- [x] Step 3A (this version): the setup form, the hand-off of the roles, the moderator's list, save and resume
+- [ ] Step 3B: the night and day screens. Step 4: the finish (not started)
 
 ## Contributing
 

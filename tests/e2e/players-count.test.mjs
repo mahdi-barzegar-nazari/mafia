@@ -1,5 +1,5 @@
 /**
- * The players-count field of the setup placeholder, in a real Chromium at 360x740 against the PRODUCTION build: the
+ * The players-count field of the setup screen, in a real Chromium at 360x740 against the PRODUCTION build: the
  * limits come from RULES (3 to 20) and are stated in the hint under the field; a legal count is accepted and written
  * back in plain digits (Persian and Arabic-Indic digits are read), an illegal one is pointed out in the language of
  * the page (a toast, and the field is marked, pulsed and focused) and never changes the saved count.
@@ -47,6 +47,27 @@ async function enter(page, text) {
     await page.fill(FIELD, text);
     await page.press(FIELD, 'Enter');
 }
+
+/**
+ * Wait until the page has stopped scrolling. The setup screen is taller than the phone: typing into the field makes
+ * the browser scroll the caret into view with an animation, and a finger that lands during that animation only stops
+ * it (no click, so no blur and no `change`). A person waits for the page to stand still too.
+ */
+const stoodStill = (page) =>
+    page.evaluate(
+        () =>
+            new Promise((resolve) => {
+                let last = -1;
+                let same = 0;
+                const tick = () => {
+                    same = window.scrollY === last ? same + 1 : 0;
+                    last = window.scrollY;
+                    if (same >= 8) resolve();
+                    else requestAnimationFrame(tick);
+                };
+                tick();
+            })
+    );
 
 describe('the players-count field (production build, 360x740)', () => {
     it('is named by its label, described by the hint, and starts at 8 with a numeric keyboard', async () => {
@@ -180,7 +201,9 @@ describe('the players-count field (production build, 360x740)', () => {
                 await page.tap(FIELD);
                 await page.keyboard.press('ControlOrMeta+A');
                 await page.keyboard.type('30');
-                await page.tap('#screen-setup h2');
+                await stoodStill(page);
+                await page.tap('#setup-name-1'); // the next thing a person does: on to the names
+                await page.waitForSelector('#toast-container .toast');
                 assert.equal((await toasts(page)).length, 1);
                 assert.equal(await page.inputValue(FIELD), '30');
             },

@@ -109,6 +109,40 @@ describe('the precache (production build)', () => {
 });
 
 describe('a first load with no network', () => {
+    it('a whole game works: dealt, handed out, saved, and resumed after a reload, with no request to the network at all', async () => {
+        const context = await installedContext();
+        try {
+            await context.setOffline(true);
+            const { page, problems } = await newPage(context);
+            const answered = [];
+            page.on('response', (response) => answered.push({ url: response.url(), fromWorker: response.fromServiceWorker() }));
+            await page.goto(baseUrl);
+            await page.waitForSelector('#screen-welcome:not(.hidden)');
+            await page.click('#btn-nav-setup');
+            await page.waitForSelector('#screen-setup:not(.hidden)');
+            await page.fill('#setup-players-count', '4');
+            await page.press('#setup-players-count', 'Enter');
+            await page.click('#btn-deal');
+            await page.waitForSelector('#reveal-gate:not(.hidden)');
+            for (let i = 0; i < 4; i++) {
+                await page.click('#btn-reveal-show');
+                await page.waitForSelector('#reveal-card:not(.hidden)');
+                await page.click('#btn-reveal-hide');
+                await page.waitForSelector(i < 3 ? '#reveal-gate:not(.hidden)' : '#screen-moderator:not(.hidden)');
+            }
+            await page.reload();
+            await page.waitForSelector('#screen-welcome:not(.hidden)');
+            await page.click('#btn-resume-game');
+            await page.waitForSelector('#screen-moderator:not(.hidden)');
+            assert.equal(await page.locator('#moderator-list .moderator-name').count(), 4);
+            const stray = answered.filter((r) => r.url.startsWith(baseUrl) && !r.fromWorker).map((r) => r.url);
+            assert.deepEqual(stray, [], 'everything came from the service worker');
+            assert.deepEqual(problems, []);
+        } finally {
+            await context.close();
+        }
+    });
+
     it('shows the whole app from the cache: welcome, setup, back, and no request goes to the network', async () => {
         const context = await installedContext();
         try {

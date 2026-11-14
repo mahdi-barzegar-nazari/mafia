@@ -24,7 +24,7 @@ import {
 } from './setupModel.js';
 
 /** Invisible direction marks (and the zero-width joiners) that a Persian keyboard or a paste can leave in a number. */
-const INVISIBLE_MARKS = /[​-‏‪-‮⁦-⁩﻿]/g;
+const INVISIBLE_MARKS = /[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
 
 /**
  * The whole number a players-count text stands for, or NaN. The text may be written with Latin, Persian or

@@ -54,8 +54,8 @@ describe('isMatchInProgress', () => {
         }
     });
 
-    it('covers every phase the app knows (a new phase has to be placed on purpose: the reveal and the moderator screens belong to a game)', () => {
-        assert.deepEqual(INSIDE_A_MATCH, ['reveal', 'moderator']);
+    it('covers every phase the app knows (a new phase has to be placed on purpose: the reveal and the five game screens belong to a game)', () => {
+        assert.deepEqual(INSIDE_A_MATCH, ['reveal', 'night', 'morning', 'day', 'dusk', 'ended']);
     });
 
     it('counts a phase it does not know as a match in progress, so a damaged state can never unlock the switch', () => {
@@ -66,21 +66,21 @@ describe('isMatchInProgress', () => {
     });
 
     it('treats a phase added to VALID_PHASES as a match phase until it is listed as outside a match', () => {
-        VALID_PHASES.add('night');
+        VALID_PHASES.add('bonus');
         try {
-            gameState.phase = 'night';
+            gameState.phase = 'bonus';
             assert.equal(isMatchInProgress(), true);
             handleAction({ type: 'SET_LANG', payload: 'en' });
             assert.equal(getLang(), 'fa', 'the switch is locked in the new phase');
         } finally {
-            VALID_PHASES.delete('night');
+            VALID_PHASES.delete('bonus');
         }
     });
 });
 
 describe('SET_LANG: refused while a game is on screen', () => {
-    it('the reveal screen and the moderator screen keep the language the game was dealt in', () => {
-        for (const phase of ['reveal', 'moderator']) {
+    it('the reveal screen and every game screen keep the language the game was dealt in', () => {
+        for (const phase of ['reveal', 'night', 'morning', 'day', 'dusk', 'ended']) {
             gameState.phase = phase;
             handleAction({ type: 'SET_LANG', payload: 'en' });
             assert.equal(getLang(), 'fa', phase);

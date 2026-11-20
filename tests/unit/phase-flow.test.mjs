@@ -131,10 +131,10 @@ describe('an unknown phase changes nothing', () => {
         assert.deepEqual(visible(), ['setup']);
     });
 
-    it('the screens of a game (reveal, moderator) cannot be entered through NAVIGATE while there is no game', () => {
+    it('the screens of a game (reveal, night, morning, day, dusk, ended) cannot be entered through NAVIGATE while there is no game', () => {
         go('setup');
         const before = renders;
-        for (const phase of ['reveal', 'moderator']) {
+        for (const phase of ['reveal', 'night', 'morning', 'day', 'dusk', 'ended']) {
             go(phase);
             assert.equal(gameState.phase, 'setup', phase);
         }
@@ -147,7 +147,7 @@ describe('an unknown phase changes nothing', () => {
         const before = renders;
         const hooked = [];
         setBeforePhaseChange((from, to) => hooked.push(`${from}->${to}`));
-        for (const phase of ['vote', 'night', '', 'WELCOME', 'constructor', '__proto__', undefined, null, 7, ['setup']]) {
+        for (const phase of ['vote', 'bonus', '', 'WELCOME', 'constructor', '__proto__', undefined, null, 7, ['setup']]) {
             setPhase(phase);
             assert.equal(gameState.phase, 'setup', String(phase));
         }
@@ -158,18 +158,18 @@ describe('an unknown phase changes nothing', () => {
 
     it('a phase added to VALID_PHASES by a later step works with no other change in the machine', async () => {
         const { VALID_PHASES } = await import('../../js/core/config.js');
-        const night = env.el('screen-night');
-        night.classList.add('screen-view', 'hidden');
-        env.stubQuery('.screen-view', [page.welcome.screen, page.setup.screen, night]);
-        VALID_PHASES.add('night');
+        const bonus = env.el('screen-bonus');
+        bonus.classList.add('screen-view', 'hidden');
+        env.stubQuery('.screen-view', [page.welcome.screen, page.setup.screen, bonus]);
+        VALID_PHASES.add('bonus');
         try {
-            go('night');
-            assert.equal(gameState.phase, 'night');
-            assert.equal(night.classList.contains('hidden'), false);
+            go('bonus');
+            assert.equal(gameState.phase, 'bonus');
+            assert.equal(bonus.classList.contains('hidden'), false);
             assert.deepEqual(visible(), []);
             assert.equal(isMatchInProgress(), true);
         } finally {
-            VALID_PHASES.delete('night');
+            VALID_PHASES.delete('bonus');
         }
     });
 });

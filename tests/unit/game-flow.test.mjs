@@ -1,13 +1,13 @@
 /**
- * Step 3A end to end on a fake page, through the real seams (`wireApp` installs the real action handler and the
- * real renderer): the setup form deals a game, the roles are handed out one player at a time, the moderator's
- * list follows, and the game is saved at every step and resumed after a "reload". It protects the promises that
- * matter most at the table:
+ * Steps 3A and 3B up to the first night, end to end on a fake page, through the real seams (`wireApp` installs the
+ * real action handler and the real renderer): the setup form deals a game, the roles are handed out one player at a
+ * time, the first night follows, and the game is saved at every step and resumed after a "reload". It protects the
+ * promises that matter most at the table:
  *
  *  - a role card is built only after its player's gate was passed, matches the game, and is TAKEN OUT of the page
  *    (not hidden) when it is hidden, so the next person never holds a phone with a role in it;
  *  - the hand-off progress is saved at every hand-off, and a reload always lands on a gate, never on a card;
- *  - the moderator's list shows no role until asked, and hides them again when the page is hidden;
+ *  - the players panel shows no role until asked, and hides them again when the page is hidden;
  *  - leaving a game, or starting another over a saved one, asks first and really discards the old one;
  *  - the language is locked from the first gate to "new game".
  */
@@ -20,6 +20,7 @@ import { MAFIA_TEAM } from '../../js/data/roles.js';
 import { eight } from './helpers/gameKit.mjs';
 import { FakeElement, installFakeEnv } from './helpers/fakeEnv.mjs';
 import { resetSingletons } from './helpers/harness.mjs';
+import { PHASES, buildPage } from './helpers/gamePage.mjs';
 
 const env = installFakeEnv();
 const getById = document.getElementById;
@@ -30,47 +31,31 @@ const { setBeforePhaseChange, setRenderer } = await import('../../js/core/phase.
 const { SAVE_KEY } = await import('../../js/core/storage.js');
 const { DEFAULT_LANG, getLang, isolate, setLang } = await import('../../js/i18n/index.js');
 const { roleName } = await import('../../js/ui/roleTexts.js');
+const { setNow, resetNow } = await import('../../js/ui/clock.js');
+const { HAND_OFF_GUARD_MS } = await import('../../js/core/config.js');
 const { resetSetupForm } = await import('../../js/ui/setup.js');
 const { syncResumeButton } = await import('../../js/ui/resume.js');
 
-const PHASES = ['welcome', 'setup', 'reveal', 'moderator'];
 const screen = (name) => env.el(`screen-${name}`);
 const byId = (id) => env.el(id);
 const names = () => byId('setup-names').children.map((input) => input.value);
 const savedRecord = () => (env.storage.has(SAVE_KEY) ? JSON.parse(env.storage.get(SAVE_KEY)) : null);
 
-/** The page: the four screens (only welcome showing), the parts of each that the code writes, and the dialogs. */
-function buildPage() {
-    const screens = PHASES.map((name) => {
-        const el = env.el(`screen-${name}`);
-        el.classList.add('screen-view');
-        if (name !== 'welcome') el.classList.add('hidden');
-        el.queries['h1, h2, h3'] = new FakeElement(`${name}-heading`, 'h2');
-        return el;
-    });
-    env.stubQuery('.screen-view', screens);
-    for (const id of ['reveal-gate', 'reveal-card']) byId(id).classList.add('hidden');
-    byId('btn-resume-game').classList.add('hidden');
-    for (const id of ['confirm-modal', 'info-modal']) {
-        const modal = byId(id);
-        modal.classList.add('modal-overlay', 'hidden');
-        modal.querySelectorAll = () => [];
-    }
-    for (const id of ['confirm-modal-title', 'confirm-modal-text', 'main-content-root', 'toast-container', 'reveal-progress', 'reveal-gate-title', 'btn-reveal-show', 'btn-reveal-hide', 'reveal-card-body', 'reveal-live', 'moderator-list', 'moderator-rules', 'btn-roles-toggle', 'players-limit-hint', 'names-limit-hint', 'godfather-hint', 'setup-names']) byId(id);
-    byId('setup-players-count').value = '8';
-    byId('setup-doctor-save').value = 'once';
-    byId('setup-godfather').checked = false;
-    byId('setup-reveal-death').checked = true;
-    document.body = new FakeElement('body', 'body');
-    document.documentElement = { lang: 'fa', dir: 'rtl', classList: { remove() {} } };
-}
+// The clock the app reads (ui/clock.js) is ours: a press after a role card was hidden is ignored for 800 ms, and a
+// test must not wait for that. `wait` moves it.
+let clockNow = 0;
+const wait = (ms) => {
+    clockNow += ms;
+};
 
 beforeEach(() => {
     env.reset();
     env.installTimers();
     env.seedRandom(7);
     resetSingletons();
-    buildPage();
+    clockNow = 1000;
+    setNow(() => clockNow);
+    buildPage(env);
     wireApp();
     resetSetupForm();
 });
@@ -81,6 +66,7 @@ afterEach(() => {
     setDispatchHandler(null);
     delete document.body;
     delete document.documentElement;
+    resetNow();
     env.reset();
 });
 after(() => env.uninstall());
@@ -118,7 +104,7 @@ function reload() {
     env.reset();
     env.seedRandom(8);
     resetSingletons();
-    buildPage();
+    buildPage(env);
     wireApp();
     resetSetupForm();
     if (record !== undefined) env.storage.set(SAVE_KEY, record);
@@ -128,6 +114,7 @@ function reload() {
 
 /** Walk one player through the gate: show the card, return what it said. */
 function peek() {
+    wait(HAND_OFF_GUARD_MS); // a person takes longer than the hand-off guard between two cards
     dispatch({ type: 'REVEAL_SHOW' });
     return cardTexts();
 }
@@ -178,7 +165,7 @@ describe('dealing from the setup form', () => {
     });
 
     it('over a saved game it asks first: nothing changes on "cancel", and "yes" replaces the old save', () => {
-        env.storage.set(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, state: { phase: 'moderator', reveal: { index: 0 }, game: eight() } }));
+        env.storage.set(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, state: { phase: 'night', reveal: { index: 0 }, game: eight() } }));
         const old = env.storage.get(SAVE_KEY);
         go('setup');
         dispatch({ type: 'DEAL_GAME' });
@@ -204,8 +191,8 @@ describe('dealing from the setup form', () => {
         assert.equal(session.pendingConfirmAction, null);
     });
 
-    it('with no game, the reveal and moderator screens cannot be reached at all', () => {
-        for (const phase of ['reveal', 'moderator']) {
+    it('with no game, the reveal and the game screens cannot be reached at all', () => {
+        for (const phase of ['reveal', 'night', 'morning', 'day', 'dusk', 'ended']) {
             go(phase);
             assert.equal(gameState.phase, 'welcome', phase);
         }
@@ -302,11 +289,11 @@ describe('the role cards', () => {
                 dispatch({ type: 'REVEAL_HIDE' });
                 assert.equal(cardTexts(), null);
             });
-            assert.equal(gameState.phase, 'moderator', `${count} players: after the last card`);
+            assert.equal(gameState.phase, 'night', `${count} players: after the last card`);
         }
     });
 
-    it('the last card says "hand back to the moderator" and finishing goes to the moderator\'s screen with the index reset', () => {
+    it('the last card says "hand back to the moderator" and finishing goes to the first night with the index reset', () => {
         deal();
         for (let i = 0; i < 7; i++) {
             peek();
@@ -316,9 +303,9 @@ describe('the role cards', () => {
         peek();
         assert.equal(byId('btn-reveal-hide').textContent, fa['reveal.card.hideLast']);
         dispatch({ type: 'REVEAL_HIDE' });
-        assert.equal(gameState.phase, 'moderator');
+        assert.equal(gameState.phase, 'night');
         assert.deepEqual(gameState.reveal, { index: 0 });
-        assert.deepEqual(visibleScreens(), ['moderator']);
+        assert.deepEqual(visibleScreens(), ['night']);
         // The last card must not stay behind in the (now hidden) reveal screen: it is taken out of the page too.
         assert.equal(byId('reveal-card-body').children.length, 0);
     });
@@ -334,7 +321,7 @@ describe('the role cards', () => {
 });
 
 describe('progress is saved at every hand-off', () => {
-    it('after each "hide" the save holds the next player\'s index, and the phase moderator after the last', () => {
+    it('after each "hide" the save holds the next player\'s index, and the phase night after the last', () => {
         deal();
         for (let i = 0; i < 8; i++) {
             peek();
@@ -344,7 +331,7 @@ describe('progress is saved at every hand-off', () => {
                 assert.equal(state.phase, 'reveal');
                 assert.deepEqual(state.reveal, { index: i + 1 }, `after player ${i + 1}`);
             } else {
-                assert.equal(state.phase, 'moderator');
+                assert.equal(state.phase, 'night');
                 assert.deepEqual(state.reveal, { index: 0 });
             }
         }
@@ -392,20 +379,22 @@ describe('a reload', () => {
         assert.equal(cardTexts(), null);
     });
 
-    it('on the moderator screen: it comes back there with the roles hidden', () => {
+    it('on the first night: it comes back there with the roles hidden and nothing picked', () => {
         deal();
         for (let i = 0; i < 8; i++) {
             peek();
             dispatch({ type: 'REVEAL_HIDE' });
         }
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'TOGGLE_ROLES' });
         assert.equal(session.rolesShown, true);
         reload();
         dispatch({ type: 'RESUME_GAME' });
-        assert.equal(gameState.phase, 'moderator');
+        assert.equal(gameState.phase, 'night');
         assert.equal(session.rolesShown, false);
-        assert.equal(byId('moderator-list').children.length, 8);
-        assert.ok(byId('moderator-list').children.every((row) => row.children.length === 1), 'names only, no role');
+        assert.equal(session.nightTarget, null);
+        assert.equal(byId('players-list').children.length, 8);
+        assert.ok(byId('players-list').children.every((row) => row.children.length === 2), 'name and mark only, no role');
     });
 
     it('resuming does not change the language and does not leave the welcome screen offering the button once the game is gone', () => {
@@ -443,63 +432,72 @@ describe('a reload', () => {
     });
 });
 
-describe("the moderator's screen", () => {
-    function toModerator() {
+describe('the players panel on the first night', () => {
+    function toNight() {
         deal();
         for (let i = 0; i < 8; i++) {
             peek();
             dispatch({ type: 'REVEAL_HIDE' });
         }
+        wait(HAND_OFF_GUARD_MS);
     }
+    const rolesIn = (row) => row.children.filter((child) => child.classList.contains('player-role'));
 
     it('opens with every player\'s name and no role anywhere, and the button offers to show them', () => {
-        toModerator();
-        const rows = byId('moderator-list').children;
+        toNight();
+        const rows = byId('players-list').children;
         assert.equal(rows.length, 8);
         rows.forEach((row, i) => {
-            assert.equal(row.children.length, 1, 'only the name');
             assert.equal(row.children[0].textContent, gameState.game.setup.players[i].name);
+            assert.equal(rolesIn(row).length, 0, 'no role');
+            assert.equal(row.children.at(-1).textContent, fa['game.player.alive']);
         });
-        assert.equal(byId('btn-roles-toggle').textContent, fa['moderator.roles.show']);
+        assert.equal(byId('btn-roles-toggle').textContent, fa['game.roles.show']);
+        assert.equal(byId('btn-roles-toggle').getAttribute('aria-pressed'), 'false');
         assert.equal(session.rolesShown, false);
     });
 
     it('"show roles" adds each player\'s role, "hide roles" takes them out of the page again', () => {
-        toModerator();
+        toNight();
         dispatch({ type: 'TOGGLE_ROLES' });
-        byId('moderator-list').children.forEach((row, i) => {
-            assert.equal(row.children[1].textContent, roleName(gameState.game.setup.players[i].role));
+        byId('players-list').children.forEach((row, i) => {
+            assert.equal(rolesIn(row)[0].textContent, roleName(gameState.game.setup.players[i].role));
         });
-        assert.equal(byId('btn-roles-toggle').textContent, fa['moderator.roles.hide']);
+        assert.equal(byId('btn-roles-toggle').textContent, fa['game.roles.hide']);
+        assert.equal(byId('btn-roles-toggle').getAttribute('aria-pressed'), 'true');
         dispatch({ type: 'TOGGLE_ROLES' });
-        assert.ok(byId('moderator-list').children.every((row) => row.children.length === 1));
-        assert.equal(byId('btn-roles-toggle').textContent, fa['moderator.roles.show']);
+        assert.ok(byId('players-list').children.every((row) => rolesIn(row).length === 0));
+        assert.equal(byId('btn-roles-toggle').textContent, fa['game.roles.show']);
+        assert.equal(byId('btn-roles-toggle').getAttribute('aria-pressed'), 'false');
     });
 
     it('the mafia team\'s roles are marked, the others not', () => {
-        toModerator();
+        toNight();
         dispatch({ type: 'TOGGLE_ROLES' });
-        byId('moderator-list').children.forEach((row, i) => {
-            const marked = row.children[1].classList.contains('is-mafia');
-            assert.equal(marked, MAFIA_TEAM.includes(gameState.game.setup.players[i].role));
+        byId('players-list').children.forEach((row, i) => {
+            assert.equal(rolesIn(row)[0].classList.contains('is-mafia'), MAFIA_TEAM.includes(gameState.game.setup.players[i].role));
         });
     });
 
     it('the roles are hidden when the page is hidden (pagehide and visibilitychange both ask for it)', () => {
-        toModerator();
+        toNight();
         dispatch({ type: 'TOGGLE_ROLES' });
         dispatch({ type: 'HIDE_SECRETS' });
         assert.equal(session.rolesShown, false);
-        assert.ok(byId('moderator-list').children.every((row) => row.children.length === 1));
-        assert.equal(byId('btn-roles-toggle').textContent, fa['moderator.roles.show']);
+        assert.ok(byId('players-list').children.every((row) => rolesIn(row).length === 0));
+        assert.equal(byId('btn-roles-toggle').textContent, fa['game.roles.show']);
     });
 
-    it('the roles are hidden again every time the screen opens', () => {
-        toModerator();
+    it('the roles are hidden again every time the phase changes', () => {
+        toNight();
         dispatch({ type: 'TOGGLE_ROLES' });
-        go('moderator');
+        const state = gameState.game;
+        gameState.phase = 'setup'; // anything that is not the engine's phase, then back: the screen opens again
+        go('night');
+        assert.equal(gameState.phase, 'night');
+        assert.equal(gameState.game, state);
         assert.equal(session.rolesShown, false);
-        assert.ok(byId('moderator-list').children.every((row) => row.children.length === 1));
+        assert.ok(byId('players-list').children.every((row) => rolesIn(row).length === 0));
     });
 
     it('lists the rules this game is played by, one line each, from the typed form', () => {
@@ -512,20 +510,20 @@ describe("the moderator's screen", () => {
             peek();
             dispatch({ type: 'REVEAL_HIDE' });
         }
-        assert.deepEqual(byId('moderator-rules').children.map((li) => li.textContent), [
-            fa['moderator.rule.selfSave.never'],
-            fa['moderator.rule.godfather.on'],
-            fa['moderator.rule.revealRole.off']
+        assert.deepEqual(byId('rules-list').children.map((li) => li.textContent), [
+            fa['game.rule.selfSave.never'],
+            fa['game.rule.godfather.on'],
+            fa['game.rule.revealRole.off']
         ]);
     });
 
     it('"new game" asks first, and on "yes" the game, its save and the form are gone and the welcome screen is back', () => {
-        toModerator();
+        toNight();
         dispatch({ type: 'CONFIRM_NEW_GAME' });
         assert.equal(byId('confirm-modal-title').textContent, fa['confirm.discard.title']);
-        assert.equal(gameState.phase, 'moderator', 'not yet');
+        assert.equal(gameState.phase, 'night', 'not yet');
         answerConfirm(false);
-        assert.equal(gameState.phase, 'moderator');
+        assert.equal(gameState.phase, 'night');
         assert.notEqual(savedRecord(), null);
         dispatch({ type: 'CONFIRM_NEW_GAME' });
         answerConfirm(true);
@@ -534,11 +532,15 @@ describe("the moderator's screen", () => {
         assert.equal(savedRecord(), null);
         assert.equal(byId('btn-resume-game').classList.contains('hidden'), true);
         assert.deepEqual(visibleScreens(), ['welcome']);
+        assert.equal(byId('game-chrome').classList.contains('hidden'), true, 'the chrome goes with the game');
     });
 
-    it('"new game" does nothing outside the moderator screen', () => {
+    it('"new game" does nothing outside the game screens', () => {
         dispatch({ type: 'CONFIRM_NEW_GAME' });
         assert.equal(session.pendingConfirmAction, null);
+        deal();
+        dispatch({ type: 'CONFIRM_NEW_GAME' });
+        assert.equal(session.pendingConfirmAction, null, 'not during the reveal either');
     });
 });
 
@@ -591,7 +593,7 @@ describe('leaving the reveal', () => {
 });
 
 describe('the language is locked while a game is on screen', () => {
-    it('SET_LANG is ignored on the reveal and the moderator screens, and works again after "new game"', () => {
+    it('SET_LANG is ignored on the reveal and the game screens, and works again after "new game"', () => {
         deal();
         dispatch({ type: 'SET_LANG', payload: 'en' });
         assert.equal(getLang(), 'fa', 'reveal');
@@ -600,7 +602,8 @@ describe('the language is locked while a game is on screen', () => {
             dispatch({ type: 'REVEAL_HIDE' });
         }
         dispatch({ type: 'SET_LANG', payload: 'en' });
-        assert.equal(getLang(), 'fa', 'moderator');
+        assert.equal(getLang(), 'fa', 'night');
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'CONFIRM_NEW_GAME' });
         answerConfirm(true);
         dispatch({ type: 'SET_LANG', payload: 'en' });

@@ -14,7 +14,7 @@
  *   players .......... everyone who takes part, the moderator not counted          (setup.players.label)
  *
  * Terms of the rules engine (js/game/, docs/game-rules.md). The role names and the words of the setup, reveal and
- * moderator screens use them (the keys are in the brackets). The Persian term to use is written in Latin letters
+ * game screens use them (the keys are in the brackets). The Persian term to use is written in Latin letters
  * (as "rawi" above), because tests/unit/i18n-en.test.mjs allows no Persian character in this file;
  * docs/game-rules.md has the same terms in Persian script. They stay the same everywhere.
  *
@@ -23,11 +23,17 @@
  *   doctor ........... the town role that saves one player each night             (Persian: doktor)      (role.doctor.name)
  *   detective ........ the town role that checks one player each night            (Persian: kargah)      (role.detective.name)
  *   citizen .......... a town player with no special power                        (Persian: shahrvand)   (role.citizen.name)
- *   moderator ........ the person who runs the game, as above                     (Persian: rawi)        (moderator.title)
+ *   moderator ........ the person who runs the game, as above                     (Persian: rawi)        (morning.notes.show)
  *   eliminated ....... out of the game, by the night kill or by the vote          (Persian: hazf-shode)  (setup.revealDeath.label)
  *   deal ............. hand every player a secret role, face down                 (Persian: pakhsh)      (setup.deal)
  *
- * Terms the night and day screens will use (step 3B adds their keys): night (shab), day (rooz), vote (ray-giri).
+ * Terms of the game screens (step 3B; the keys are in the brackets):
+ *
+ *   night ............ the phase in which the mafia, doctor and detective act      (Persian: shab)        (game.heading.night)
+ *   day .............. the phase of discussion that ends in the vote                (Persian: rooz)        (game.heading.day)
+ *   vote ............. the day's ballot that can eliminate one player               (Persian: ray-giri)    (day.close)
+ *   town ............. everyone who is not on the mafia team, as a side that wins   (Persian: shahrvandan) (ended.winner.town)
+ *   undo ............. take the last move back                                      (Persian: vagard)      (game.undo)
  *
  * Typography: ’ for apostrophes, “ ” for the quotes around a name in a list of names.
  */
@@ -147,21 +153,85 @@ export const en = {
     'role.citizen.name': '🙂 Citizen',
     'role.citizen.does': 'You have no special power. Find the mafia through discussion and votes.',
 
-    // ---- Moderator’s screen
-    'moderator.title': 'Moderator’s list',
-    'moderator.hint': 'This list is for the moderator only. Roles stay hidden until you show them.',
-    'moderator.roles.show': 'Show roles',
-    'moderator.roles.hide': 'Hide roles',
-    'moderator.rules.title': 'Rules for this game',
-    'moderator.rule.selfSave.never': 'The doctor can never save themselves.',
-    'moderator.rule.selfSave.once': 'The doctor can save themselves once.',
-    'moderator.rule.selfSave.always': 'The doctor can save themselves any night.',
-    'moderator.rule.godfather.on': 'The godfather is in the game and looks innocent to the detective.',
-    'moderator.rule.godfather.off': 'There is no godfather.',
-    'moderator.rule.revealRole.on': 'The role of an eliminated player is announced.',
-    'moderator.rule.revealRole.off': 'The role of an eliminated player stays secret.',
-    'moderator.next': 'The night and day screens come in the next version.',
-    'moderator.newGame': 'New game',
+    // ---- The game screens: heading, live line and the shared chrome (players panel, undo, new game)
+    'game.heading.night': 'Night {n}',
+    'game.heading.morning': 'Morning after night {n}',
+    'game.heading.day': 'Day {n}',
+    'game.heading.dusk': 'Day {n}: the vote result',
+    'game.heading.ended': 'Game over · round {n}',
+    'game.live.night': '{heading}. Now: {step}',
+    'game.live.ended': '{heading} — {winner}',
+    'game.continue': 'Continue',
+    'game.undo': 'Undo',
+    'game.newGame': 'New game',
+    'game.error.generic': 'That didn’t work. Look at the screen and try again.',
+    'game.error.selfSave': 'The doctor can’t save themselves any more.',
+    'game.error.checkSelf': 'The detective can’t check themselves.',
+    'game.players.title': 'Players',
+    'game.player.alive': 'Alive',
+    'game.player.dead': 'Eliminated',
+    'game.roles.show': 'Show roles',
+    'game.roles.hide': 'Hide roles',
+    'game.rules.title': 'Rules for this game',
+    'game.rule.selfSave.never': 'The doctor can never save themselves.',
+    'game.rule.selfSave.once': 'The doctor can save themselves once.',
+    'game.rule.selfSave.always': 'The doctor can save themselves any night.',
+    'game.rule.godfather.on': 'The godfather is in the game and looks innocent to the detective.',
+    'game.rule.godfather.off': 'There is no godfather.',
+    'game.rule.revealRole.on': 'The role of an eliminated player is announced.',
+    'game.rule.revealRole.off': 'The role of an eliminated player stays secret.',
+
+    // ---- Night screen
+    'night.step.mafia.name': 'Mafia team',
+    'night.step.doctor.name': 'Doctor',
+    'night.step.detective.name': 'Detective',
+    'night.status.done': 'Done',
+    'night.status.current': 'Now',
+    'night.status.waiting': 'Waiting',
+    'night.status.nobody': 'Nobody alive',
+    'night.pause.mafia': 'No one on the mafia team is alive. Pause for a few seconds as if you were calling them, so the table can’t tell.',
+    'night.pause.doctor': 'The doctor is out. Pause for a few seconds as if you were calling them, so the table can’t tell.',
+    'night.pause.detective': 'The detective is out. Pause for a few seconds as if you were calling them, so the table can’t tell.',
+    'night.do.mafia.plain': 'Wake the mafia team. They agree on ONE target.',
+    'night.do.mafia.godfather': 'Wake the mafia team, godfather included. They agree on ONE target.',
+    'night.do.doctor': 'Wake the doctor and ask who to save tonight.',
+    'night.do.detective': 'Wake the detective and ask who to check tonight.',
+    'night.do.hint': 'Tap one name, then confirm. Nothing is saved until you confirm.',
+    'night.doctor.noSelf': 'The doctor can’t save themselves any more, so their name is missing from the list.',
+    'night.targets.aria': 'Choose a target',
+    'night.confirm.none': 'Pick a name first',
+    'night.confirm': 'Confirm: {name}',
+
+    // ---- Morning screen
+    'morning.death': '{name} was eliminated in the night.',
+    'morning.death.role': '{name} was eliminated in the night. Their role: {role}.',
+    'morning.nobody': 'Nobody died tonight.',
+    'morning.notes.show': 'Show moderator notes',
+    'morning.notes.hide': 'Hide moderator notes',
+    'morning.notes.empty': 'Nothing to note this time.',
+    'morning.note.check.mafia': 'The detective checked {name}: mafia.',
+    'morning.note.check.innocent': 'The detective checked {name}: not mafia.',
+    'morning.note.saved': 'The doctor saved {name}, so nobody was eliminated.',
+
+    // ---- Day screen: the vote
+    'day.hint': 'Let the table talk, then count the raised hands and enter each player’s votes.',
+    'day.list.aria': 'Votes for each player',
+    'day.counter.one': '{used} of {count} vote given',
+    'day.counter.other': '{used} of {count} votes given',
+    'day.vote.minus': 'One fewer vote for {name}',
+    'day.vote.plus': 'One more vote for {name}',
+    'day.zeroHint': 'If nobody gets a vote, nobody is eliminated.',
+    'day.close': 'Close the vote',
+
+    // ---- Dusk screen: the result of the vote
+    'dusk.eliminated': '{name} was eliminated by the vote.',
+    'dusk.eliminated.role': '{name} was eliminated by the vote. Their role: {role}.',
+    'dusk.tie': 'The vote is tied: nobody is eliminated.',
+    'dusk.none': 'No votes were given, so nobody was eliminated.',
+
+    // ---- End of the game
+    'ended.winner.town': 'The town wins',
+    'ended.winner.mafia': 'The mafia wins',
 
     // ---- Help texts of the setup options
     'info.doctorSelfSave.title': '🩺 The doctor saving themselves',

@@ -1,7 +1,11 @@
 /**
- * Shared plumbing for the browser tests of the game itself (setup form, reveal, moderator's list): how a test
+ * Shared plumbing for the browser tests of the game itself (setup form, reveal, the night, the vote): how a test
  * opens the app in a language and a theme, fills the form, deals, walks the reveal and reads back the saved game,
- * and the layout checks (nothing sticks out sideways, every control is a finger-sized target).
+ * plays the night and the vote through the real buttons, and the layout checks (nothing sticks out sideways, every
+ * control is a finger-sized target).
+ *
+ * The page runs on Playwright's fake clock (it flows by itself, and a test can jump it): the app ignores presses
+ * for 800 ms after a role card was hidden, and a test jumps over that time (`handOff`) instead of waiting for it.
  *
  * The texts a test expects are read from the catalogs (js/i18n) and not typed again here, so a reworded text does
  * not break a test, while a text that is missing, stale or in the wrong language still does.
@@ -12,6 +16,8 @@ import { fa } from '../../../js/i18n/fa.js';
 import { PHONE, newPage } from './app.mjs';
 
 export const SAVE_KEY = 'mafia_full_state_master';
+/** How long the app ignores presses after a role card was hidden (js/core/config.js HAND_OFF_GUARD_MS). */
+export const GUARD_MS = 800;
 export const THEMES = ['default', 'noir', 'classic', 'emerald', 'crimson', 'sunset', 'cyber', 'ocean'];
 export const LANGS = ['fa', 'en'];
 export const ROLE_IDS = ['mafia', 'godfather', 'doctor', 'detective', 'citizen'];
@@ -38,6 +44,7 @@ export const roleDoes = (lang, role) => say(lang, `role.${role}.does`);
  */
 export async function withGame(browser, baseUrl, fn, { lang = 'fa', theme, touch = false, storage = {} } = {}) {
     const context = await browser.newContext({ viewport: PHONE, reducedMotion: 'reduce', hasTouch: touch, isMobile: touch });
+    await context.clock.install();
     const { page, problems } = await newPage(context);
     try {
         const seed = { ...(lang === 'fa' ? {} : { mafia_lang: lang }), ...(theme ? { mafia_selected_theme: theme } : {}), ...storage };
@@ -55,6 +62,9 @@ export async function withGame(browser, baseUrl, fn, { lang = 'fa', theme, touch
         await context.close();
     }
 }
+
+/** Let the hand-off guard run out: the person who hid a card has passed the phone on and a new person presses. */
+export const handOff = (page) => page.clock.fastForward(GUARD_MS);
 
 /** The ids of the screens that are showing. */
 export const shown = (page) => page.evaluate(() => [...document.querySelectorAll('.screen-view')].filter((el) => !el.classList.contains('hidden')).map((el) => el.id));
@@ -159,8 +169,9 @@ export async function passOnePlayer(page, { lang, index, count, players }) {
     assert.equal(await page.textContent('#btn-reveal-hide'), say(lang, last ? 'reveal.card.hideLast' : 'reveal.card.hide'), where);
 
     await page.click('#btn-reveal-hide');
-    if (last) await page.waitForSelector('#screen-moderator:not(.hidden)');
+    if (last) await page.waitForSelector('#screen-night:not(.hidden)');
     else await page.waitForSelector('#reveal-gate:not(.hidden)');
+    await handOff(page);
     assert.equal(await page.locator('#reveal-card-body > *').count(), 0, `${where}: the card is taken out of the page, not only hidden`);
     await assertNoRoleInPage(page, `${where} (after hide)`);
     return card;
@@ -256,4 +267,119 @@ export function pageGoesAway(page, how) {
             document.dispatchEvent(new Event('visibilitychange'));
         }
     }, how);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The game itself: reveal in one go, then the night and the vote through the real buttons
+// ---------------------------------------------------------------------------------------------------
+
+/** Deal a game of `count` players from the setup form (names and options as given) and return its players, roles included. */
+export async function dealGame(page, lang, count = 8, { godfather = count >= 6, doctorSelfSave, revealRoleOnDeath } = {}) {
+    await goSetup(page);
+    await setCount(page, count);
+    await fillNames(page, makeNames(count, lang));
+    await setGodfather(page, godfather);
+    if (doctorSelfSave) await page.selectOption('#setup-doctor-save', doctorSelfSave);
+    if (revealRoleOnDeath !== undefined) {
+        const box = page.locator('#setup-reveal-death');
+        if ((await box.isChecked()) !== revealRoleOnDeath) await page.locator('label.switch:has(#setup-reveal-death)').click();
+    }
+    await deal(page);
+    return savedPlayers(page);
+}
+
+/** Hand every card out, fast: show, hide, let the guard run out. Ends on the first night. */
+export async function passReveal(page, count) {
+    for (let i = 0; i < count; i++) {
+        await page.waitForSelector('#reveal-gate:not(.hidden)');
+        await page.click('#btn-reveal-show');
+        await page.waitForSelector('#reveal-card:not(.hidden)');
+        await page.click('#btn-reveal-hide');
+        await handOff(page);
+    }
+    await page.waitForSelector('#screen-night:not(.hidden)');
+}
+
+/** Deal and hand out the cards: the first night is on screen. Returns the players (with their real roles). */
+export async function startGame(page, lang, count = 8, options) {
+    const players = await dealGame(page, lang, count, options);
+    await passReveal(page, count);
+    return players;
+}
+
+export const idsWithRole = (players, ...roles) => players.map((p, i) => ({ id: `p${i + 1}`, role: p.role })).filter((p) => roles.includes(p.role)).map((p) => p.id);
+
+/** The step the night is on now ('mafia', 'doctor', 'detective'), or null when the night is not on screen. */
+export const currentStep = (page) =>
+    page.evaluate(() => {
+        // The night screen keeps its last drawing while another screen is up; only a night that is showing has a step.
+        if (document.getElementById('screen-night').classList.contains('hidden')) return null;
+        return document.querySelector('#night-steps [data-status="current"]')?.dataset.step ?? null;
+    });
+/** The status of each of the three steps, in order. */
+export const stepStatuses = (page) => page.evaluate(() => [...document.querySelectorAll('#night-steps li')].map((li) => li.dataset.status));
+/** The player ids the current step offers. */
+export const offeredIds = (page) => page.evaluate(() => [...document.querySelectorAll('#night-targets button')].map((b) => b.dataset.id));
+
+/** Tap a name of the night's list (by player id); does not confirm. */
+export async function pick(page, id) {
+    await page.click(`#night-targets button[data-id="${id}"]`);
+}
+/** Tap a name and confirm it: one step of the night. */
+export async function chooseTarget(page, id) {
+    await pick(page, id);
+    await page.click('#btn-night-confirm');
+}
+
+/**
+ * Play a whole night: whichever steps come, the target is the one given for it (`{ mafia, doctor, detective }`, player
+ * ids). Ends when the morning is on screen (or the night is still on, when a target was not offered: the caller's
+ * failing assertion then names it).
+ */
+export async function playNight(page, targets) {
+    for (let guard = 0; guard < 4; guard++) {
+        const step = await currentStep(page);
+        if (!step) break;
+        await chooseTarget(page, targets[step]);
+        await page.waitForFunction(() => document.querySelector('#screen-night:not(.hidden)') === null || document.querySelector('#btn-night-confirm').disabled);
+    }
+    await page.waitForSelector('#screen-morning:not(.hidden)');
+}
+
+/** The vote: `tally` is { playerId: votes }; each vote is one tap of the plus. Closes the vote; ends on the dusk. */
+export async function castVotes(page, tally) {
+    await page.waitForSelector('#screen-day:not(.hidden)');
+    for (const [id, count] of Object.entries(tally)) {
+        for (let i = 0; i < count; i++) await page.click(`#vote-list li[data-id="${id}"] .stepper-plus`);
+    }
+    await page.click('#btn-vote-close');
+    await page.waitForSelector('#screen-dusk:not(.hidden)');
+}
+
+/** Continue from the morning to the day. */
+export async function toDay(page) {
+    await page.click('#btn-morning-continue');
+    await page.waitForSelector('#screen-day:not(.hidden)');
+}
+
+/** Continue from the dusk: the next night, or the end screen when the game is over. */
+export async function fromDusk(page) {
+    await page.click('#btn-dusk-continue');
+    await page.waitForSelector('#screen-night:not(.hidden), #screen-ended:not(.hidden)');
+}
+
+/** The actions the saved game holds. */
+export const savedActions = async (page) => (await savedState(page)).game.actions;
+/** The screen that is showing, as one id without the prefix ('night', 'morning', ...). */
+export const screenNow = async (page) => {
+    const ids = await shown(page);
+    assert.equal(ids.length, 1, `one screen is showing: ${ids}`);
+    return ids[0].replace('screen-', '');
+};
+/** Every text inside one element of the page, joined (empty when it is not there). */
+export const textIn = (page, selector) => page.evaluate((sel) => document.querySelector(sel)?.textContent ?? '', selector);
+/** True when the text is nowhere in the page's HTML, visible or not. */
+export async function assertNotInPage(page, text, where) {
+    const html = await page.evaluate(() => document.documentElement.outerHTML);
+    assert.ok(!html.includes(text), `${where}: "${text}" is in the page`);
 }

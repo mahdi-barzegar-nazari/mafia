@@ -29,7 +29,14 @@ const CONTROL_IDS = [
     'btn-reveal-show',
     'btn-reveal-hide',
     'btn-reveal-back',
+    'btn-night-confirm',
+    'btn-morning-notes',
+    'btn-morning-continue',
+    'btn-vote-close',
+    'btn-dusk-continue',
+    'btn-ended-new-game',
     'btn-roles-toggle',
+    'btn-undo',
     'btn-new-game',
     'btn-confirm-yes',
     'btn-confirm-no'
@@ -118,11 +125,29 @@ describe('bindEvents: one control, one action', () => {
         assert.deepEqual(actions(), [{ type: 'REVEAL_SHOW' }, { type: 'REVEAL_HIDE' }, { type: 'CONFIRM_LEAVE_REVEAL' }]);
     });
 
-    it('the moderator buttons toggle the roles and ask for a new game', () => {
+    it('each button of a game screen asks for exactly one action, and presses nothing by itself', () => {
+        bindEvents();
+        const expected = [
+            ['btn-night-confirm', { type: 'NIGHT_CONFIRM' }],
+            ['btn-morning-notes', { type: 'TOGGLE_NOTES' }],
+            ['btn-morning-continue', { type: 'CONTINUE_GAME' }],
+            ['btn-vote-close', { type: 'VOTE_CLOSE' }],
+            ['btn-dusk-continue', { type: 'CONTINUE_GAME' }],
+            ['btn-ended-new-game', { type: 'NEW_GAME_NOW' }]
+        ];
+        for (const [id, action] of expected) {
+            recorded.actions.length = 0;
+            env.el(id).onclick();
+            assert.deepEqual(actions(), [action], id);
+        }
+    });
+
+    it('the chrome buttons toggle the roles, undo the last move and ask for a new game', () => {
         bindEvents();
         env.el('btn-roles-toggle').onclick();
+        env.el('btn-undo').onclick();
         env.el('btn-new-game').onclick();
-        assert.deepEqual(actions(), [{ type: 'TOGGLE_ROLES' }, { type: 'CONFIRM_NEW_GAME' }]);
+        assert.deepEqual(actions(), [{ type: 'TOGGLE_ROLES' }, { type: 'UNDO_GAME' }, { type: 'CONFIRM_NEW_GAME' }]);
     });
 
     it('each (i) button opens the help text of its own option, and the help modal closes', () => {
@@ -204,7 +229,7 @@ describe('bindEvents: the page itself', () => {
         assert.deepEqual(env.logs.wakeLocks, ['screen']);
     });
 
-    it('hides the secrets (a role card, the roles of the list) when the page goes out of sight, and only then', async () => {
+    it('hides the secrets (a role card, the roles of the players panel, the moderator notes) when the page goes out of sight, and only then', async () => {
         bindEvents();
         const [{ fn }] = listenersOf('document', 'visibilitychange');
         document.visibilityState = 'visible';

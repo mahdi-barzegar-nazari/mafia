@@ -80,6 +80,17 @@ describe('the precache (production build)', () => {
         for (const module of [...modules, new URL('js/preinit.js', baseUrl).href]) assert.ok(list.has(module), `${module} is not in the precache`);
     });
 
+    it('lists every module of the game screens (step 3B), and no module of the removed moderator screen', async () => {
+        const list = (await precacheList()).map((file) => file.replace(/^\.\//, ''));
+        const graph = (await importGraph('js/main.js')).map((url) => url.replace(baseUrl, ''));
+        for (const module of ['clock', 'errorTexts', 'gameChrome', 'gameScreens', 'handOffGuard', 'nightModel', 'outcomeTexts', 'outcomes', 'voteModel']) {
+            assert.ok(list.includes(`js/ui/${module}.js`), `js/ui/${module}.js is in the precache`);
+            assert.ok(graph.includes(`js/ui/${module}.js`), `js/ui/${module}.js is loaded by main.js`);
+        }
+        assert.ok(!list.includes('js/ui/moderator.js'));
+        assert.ok(list.some((file) => file === 'js/game/view.js') && list.some((file) => file === 'js/game/engine.js'), 'the engine modules the screens use');
+    });
+
     it('the cache the worker filled holds exactly that list, every entry a real answer', async () => {
         const context = await installedContext();
         try {
@@ -109,10 +120,11 @@ describe('the precache (production build)', () => {
 });
 
 describe('a first load with no network', () => {
-    it('a whole game works: dealt, handed out, saved, and resumed after a reload, with no request to the network at all', async () => {
+    it('a whole game works: dealt, handed out, a night played, saved, and resumed after a reload, with no request to the network at all', async () => {
         const context = await installedContext();
         try {
             await context.setOffline(true);
+            await context.clock.install(); // the hand-off guard (800 ms) is jumped over, not waited for
             const { page, problems } = await newPage(context);
             const answered = [];
             page.on('response', (response) => answered.push({ url: response.url(), fromWorker: response.fromServiceWorker() }));
@@ -128,13 +140,19 @@ describe('a first load with no network', () => {
                 await page.click('#btn-reveal-show');
                 await page.waitForSelector('#reveal-card:not(.hidden)');
                 await page.click('#btn-reveal-hide');
-                await page.waitForSelector(i < 3 ? '#reveal-gate:not(.hidden)' : '#screen-moderator:not(.hidden)');
+                await page.waitForSelector(i < 3 ? '#reveal-gate:not(.hidden)' : '#screen-night:not(.hidden)');
+                await page.clock.fastForward(800);
             }
+            // The first step of the night, played offline: pick, confirm, and the next step is on.
+            await page.click('#night-targets button >> nth=0');
+            await page.click('#btn-night-confirm');
+            await page.waitForFunction(() => document.querySelector('#night-steps [data-status="done"]') !== null);
             await page.reload();
             await page.waitForSelector('#screen-welcome:not(.hidden)');
             await page.click('#btn-resume-game');
-            await page.waitForSelector('#screen-moderator:not(.hidden)');
-            assert.equal(await page.locator('#moderator-list .moderator-name').count(), 4);
+            await page.waitForSelector('#screen-night:not(.hidden)');
+            assert.equal(await page.locator('#players-list .player-name').count(), 4);
+            assert.equal(await page.locator('#night-steps [data-status="done"]').count(), 1, 'the step that was recorded stays recorded');
             const stray = answered.filter((r) => r.url.startsWith(baseUrl) && !r.fromWorker).map((r) => r.url);
             assert.deepEqual(stray, [], 'everything came from the service worker');
             assert.deepEqual(problems, []);

@@ -1,9 +1,9 @@
 /**
- * The four screens, read from index.html: the welcome screen, the setup form, the reveal screen and the
- * moderator's screen. There are exactly these four (the night and day screens come with step 3B), each control of
- * the setup form is listed here on purpose, and the reveal screen's page holds no role at all (the role card is built
- * by JS when it is shown). A stray control, a leftover of the Spyfall template or a text of a screen that does not
- * exist yet fails here. (How the screens behave is in phase-flow.test.mjs, game-flow.test.mjs and bindings.test.mjs;
+ * The screens, read from index.html: the welcome screen, the setup form, the reveal screen and the five game screens
+ * (night, morning, day, dusk, ended) with the chrome they share. There are exactly these eight, each control is
+ * listed here on purpose, and the page holds no role and no moderator note at all (JS builds them only while they
+ * are asked for). A stray control, a leftover of the Spyfall template or the old temporary moderator screen fails
+ * here. (How the screens behave is in phase-flow.test.mjs, game-flow.test.mjs and bindings.test.mjs;
  * how the text is translated in i18n-html.test.mjs and lang-round-trip.test.mjs.)
  */
 import assert from 'node:assert/strict';
@@ -26,16 +26,32 @@ const CONTROLS = new Set(['button', 'input', 'select', 'textarea', 'a', 'details
 const welcome = byId('screen-welcome');
 const setup = byId('screen-setup');
 const reveal = byId('screen-reveal');
-const moderator = byId('screen-moderator');
-const SCREENS = [welcome, setup, reveal, moderator];
+const night = byId('screen-night');
+const morning = byId('screen-morning');
+const day = byId('screen-day');
+const dusk = byId('screen-dusk');
+const ended = byId('screen-ended');
+const chrome = byId('game-chrome');
+const GAME_SCREENS = [night, morning, day, dusk, ended];
+const SCREENS = [welcome, setup, reveal, ...GAME_SCREENS];
 
 describe('the screens', () => {
-    it('there are exactly four, the phases of the machine, welcome first and visible, the others hidden', () => {
+    it('there are exactly eight, the phases of the machine, welcome first and visible, the others hidden; no moderator screen is left', () => {
         const screens = all.filter((el) => classesOf(el).includes('screen-view'));
-        assert.deepEqual(screens.map((s) => s.attrs.id), ['screen-welcome', 'screen-setup', 'screen-reveal', 'screen-moderator']);
+        assert.deepEqual(screens.map((s) => s.attrs.id), ['screen-welcome', 'screen-setup', 'screen-reveal', 'screen-night', 'screen-morning', 'screen-day', 'screen-dusk', 'screen-ended']);
         assert.deepEqual([...VALID_PHASES].map((phase) => `screen-${phase}`), screens.map((s) => s.attrs.id));
         assert.equal(classesOf(welcome).includes('hidden'), false);
-        for (const screen of [setup, reveal, moderator]) assert.equal(classesOf(screen).includes('hidden'), true, screen.attrs.id);
+        for (const screen of [setup, reveal, ...GAME_SCREENS]) assert.equal(classesOf(screen).includes('hidden'), true, screen.attrs.id);
+        assert.equal(byId('screen-moderator'), undefined);
+    });
+
+    it('the chrome the game screens share is outside them (so a screen change keeps it), after them, inside the main element, and hidden', () => {
+        assert.ok(chrome, '#game-chrome');
+        assert.equal(chrome.parent.attrs.id, 'main-content-root');
+        assert.ok(classesOf(chrome).includes('hidden'));
+        assert.equal(closest(chrome, (el) => classesOf(el).includes('screen-view')), null);
+        const order = [...elements(byId('main-content-root'))].filter((el) => el.attrs.id === 'screen-ended' || el.attrs.id === 'game-chrome').map((el) => el.attrs.id);
+        assert.deepEqual(order, ['screen-ended', 'game-chrome']);
     });
 
     it('all are inside the main element, which is what a dialog makes inert', () => {
@@ -44,7 +60,7 @@ describe('the screens', () => {
 
     it('each starts with the heading the focus moves to: the h1 of the welcome screen, an h2 on the others', () => {
         assert.equal(within(welcome).find((el) => /^h[1-3]$/.test(el.tag)).tag, 'h1');
-        for (const screen of [setup, moderator]) assert.equal(within(screen).find((el) => /^h[1-3]$/.test(el.tag)).tag, 'h2', screen.attrs.id);
+        for (const screen of [setup, ...GAME_SCREENS]) assert.equal(within(screen).find((el) => /^h[1-3]$/.test(el.tag)).tag, 'h2', screen.attrs.id);
         assert.equal(all.filter((el) => el.tag === 'h1').length, 1, 'one h1 on the page');
     });
 });
@@ -223,20 +239,95 @@ describe('the reveal screen: a gate and a card, and nothing secret in the page',
     });
 });
 
-describe("the moderator's screen: the list, the toggle, the rules and the new-game button", () => {
-    it('has these controls, in this order', () => {
-        assert.deepEqual(within(moderator).filter((el) => CONTROLS.has(el.tag)).map((el) => el.attrs.id), ['btn-roles-toggle', 'btn-new-game']);
+describe('the game screens', () => {
+    const controlIds = (root) => within(root).filter((el) => CONTROLS.has(el.tag)).map((el) => el.attrs.id);
+    const headingOf = (screen) => within(screen).find((el) => /^h[1-3]$/.test(el.tag));
+
+    it('each starts with an empty h2 that JS fills with the phase and the round', () => {
+        for (const screen of GAME_SCREENS) {
+            const phase = screen.attrs.id.replace('screen-', '');
+            assert.equal(headingOf(screen).attrs.id, `title-${phase}`);
+            assert.equal(normalizeText(innerText(headingOf(screen))), '', phase);
+        }
     });
 
-    it('the list and the rules are empty in the page: JS writes them, so no role is in the page', () => {
-        for (const id of ['moderator-list', 'moderator-rules']) {
+    it('has these controls, in this order', () => {
+        assert.deepEqual(controlIds(night), ['btn-night-confirm']);
+        assert.deepEqual(controlIds(morning), ['btn-morning-continue', 'btn-morning-notes']);
+        assert.deepEqual(controlIds(day), ['btn-vote-close']);
+        assert.deepEqual(controlIds(dusk), ['btn-dusk-continue']);
+        assert.deepEqual(controlIds(ended), ['btn-ended-new-game']);
+    });
+
+    it('the night confirm button starts disabled; the lists the code fills are empty (no target, no vote, no step in the page)', () => {
+        assert.ok('disabled' in byId('btn-night-confirm').attrs);
+        for (const id of ['night-steps', 'night-targets', 'vote-list', 'morning-notes-list']) assert.equal(within(byId(id)).length, 0, id);
+        assert.equal(byId('night-steps').tag, 'ol');
+    });
+
+    it('the moderator notes are a closed region: hidden, labelled by their button, which says it controls them', () => {
+        const box = byId('morning-notes');
+        assert.ok(classesOf(box).includes('hidden'));
+        assert.equal(box.attrs.role, 'region');
+        assert.equal(box.attrs['aria-labelledby'], 'btn-morning-notes');
+        const toggle = byId('btn-morning-notes');
+        assert.equal(toggle.attrs['aria-expanded'], 'false');
+        assert.equal(toggle.attrs['aria-controls'], 'morning-notes');
+        assert.equal(toggle.attrs['data-i18n'], 'morning.notes.show');
+        assert.equal(normalizeText(innerText(byId('morning-notes-list'))), '');
+    });
+
+    it('the texts that name a player or say what happened are written by JS: the page holds none of them', () => {
+        for (const id of ['morning-announcement', 'dusk-result', 'ended-winner', 'night-instruction', 'night-doctor-note', 'day-counter', 'btn-night-confirm']) {
+            assert.equal(normalizeText(innerText(byId(id))), '', id);
+        }
+    });
+
+    it('has exactly one polite live line for the phase and the step, outside every screen, not shown on screen', () => {
+        const live = byId('game-live');
+        assert.equal(live.attrs['aria-live'], 'polite');
+        assert.equal(live.attrs.role, 'status');
+        assert.ok(classesOf(live).includes('sr-only'));
+        assert.equal(normalizeText(innerText(live)), '');
+        assert.equal(closest(live, (el) => classesOf(el).includes('screen-view')), null);
+        assert.equal(all.filter((el) => el.attrs['aria-live'] === 'polite' && el.attrs.id !== 'toast-container').map((el) => el.attrs.id).sort().join(), 'day-counter,game-live,reveal-live');
+    });
+
+    it('the vote list and the target list carry an accessible name from the catalog', () => {
+        assert.equal(byId('vote-list').attrs['data-i18n-attr'], 'aria-label:day.list.aria');
+        assert.equal(byId('night-targets').attrs['data-i18n-attr'], 'aria-label:night.targets.aria');
+    });
+});
+
+describe('the chrome of the game screens: the players panel, the rules, undo and new game', () => {
+    it('has these controls, in this order: the roles toggle, the rules (details and summary), undo, new game', () => {
+        assert.deepEqual(within(chrome).filter((el) => CONTROLS.has(el.tag)).map((el) => el.attrs.id || el.tag), ['btn-roles-toggle', 'rules-details', 'summary', 'btn-undo', 'btn-new-game']);
+    });
+
+    it('the players list and the rules list are empty in the page: JS writes them, so no role is in the page', () => {
+        for (const id of ['players-list', 'rules-list']) {
             assert.equal(byId(id).tag, 'ul', id);
             assert.equal(within(byId(id)).length, 0, id);
         }
     });
 
-    it('the toggle starts on "show roles" (the roles are hidden when the screen opens)', () => {
-        assert.equal(byId('btn-roles-toggle').attrs['data-i18n'], 'moderator.roles.show');
+    it('the roles toggle starts on \"show roles\" and not pressed (the roles are hidden when a screen opens)', () => {
+        assert.equal(byId('btn-roles-toggle').attrs['data-i18n'], 'game.roles.show');
+        assert.equal(byId('btn-roles-toggle').attrs['aria-pressed'], 'false');
+    });
+
+    it('the rules are in a <details> that starts closed', () => {
+        const details = byId('rules-details');
+        assert.equal(details.tag, 'details');
+        assert.equal('open' in details.attrs, false);
+        assert.equal(within(details).find((el) => el.tag === 'summary').attrs['data-i18n'], 'game.rules.title');
+    });
+
+    it('undo starts disabled, and undo and new game come after the players panel (below the main content, not above it)', () => {
+        assert.ok('disabled' in byId('btn-undo').attrs);
+        const order = within(chrome).map((el) => el.attrs.id).filter(Boolean);
+        assert.ok(order.indexOf('players-list') < order.indexOf('btn-undo'));
+        assert.ok(order.indexOf('btn-undo') < order.indexOf('btn-new-game'));
     });
 });
 
@@ -290,9 +381,9 @@ describe('the page as a whole', () => {
         }
     });
 
-    it('the catalogs hold the texts of these screens and the shell, and no key of a screen that does not exist yet (the night and day screens)', () => {
+    it('the catalogs hold the texts of these screens and the shell, and no key of the old moderator screen', () => {
         const prefixes = new Set(Object.keys(fa).map((key) => key.split('.')[0]));
-        assert.deepEqual([...prefixes].sort(), ['a11y', 'confirm', 'header', 'info', 'install', 'meta', 'modal', 'moderator', 'names', 'reveal', 'role', 'setup', 'theme', 'time', 'toast', 'welcome']);
+        assert.deepEqual([...prefixes].sort(), ['a11y', 'confirm', 'day', 'dusk', 'ended', 'game', 'header', 'info', 'install', 'meta', 'modal', 'morning', 'names', 'night', 'reveal', 'role', 'setup', 'theme', 'time', 'toast', 'welcome']);
         assert.deepEqual(Object.keys(en).map((key) => key.split('.')[0]).filter((p) => !prefixes.has(p)), []);
     });
 });

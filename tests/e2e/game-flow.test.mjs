@@ -1,12 +1,12 @@
 /**
- * Step 3A in a real Chromium at 360x740 against the PRODUCTION build, in Persian and in English: the setup form,
- * the hand-off of the roles one player at a time, the moderator's list, and the save that lets a game be picked up
- * after the page was closed. What matters at the table is checked from the person's side:
+ * Steps 3A and 3B up to the first night in a real Chromium at 360x740 against the PRODUCTION build, in Persian and
+ * in English: the setup form, the hand-off of the roles one player at a time, the first night with its players
+ * panel, and the save that lets a game be picked up after the page was closed. What matters at the table is checked from the person's side:
  *
  *  - a role is on the phone only while its player is looking (the card is TAKEN OUT of the page when hidden);
  *  - the card says what the saved game says, and a mafia member sees exactly the other members of the mafia;
  *  - the hand-off progress survives a reload, and a reload never lands on a card;
- *  - the moderator's list shows no role until asked, and hides them again when the page goes out of sight;
+ *  - the players panel shows no role until asked, and hides them again when the page goes out of sight;
  *  - a damaged save is ignored; the form refuses what the engine refuses, on the right field, in words.
  * The screens in the eight themes and the keyboard-only run are in game-screens.test.mjs.
  * Requires: npm install && npx playwright install chromium
@@ -24,6 +24,7 @@ import {
     digits,
     fillNames,
     goSetup,
+    handOff,
     makeNames,
     nameValues,
     pageGoesAway,
@@ -40,6 +41,7 @@ import {
     tapWhenStill,
     withGame
 } from './helpers/game.mjs';
+import { SAVE_VERSION } from '../../js/core/state.js';
 import { persianIn, recordScreen } from './helpers/record.mjs';
 
 let app;
@@ -70,10 +72,10 @@ async function dealGame(page, lang, count = 8, { godfather = count >= 6 } = {}) 
     return savedPlayers(page);
 }
 
-/** Hand every player their card, as the table does; ends on the moderator's screen. */
+/** Hand every player their card, as the table does; ends on the first night. */
 async function passAll(page, lang, players) {
     for (let i = 0; i < players.length; i++) await passOnePlayer(page, { lang, index: i, count: players.length, players });
-    await page.waitForSelector('#screen-moderator:not(.hidden)');
+    await page.waitForSelector('#screen-night:not(.hidden)');
 }
 
 /** What a reload does to the app: the page starts over; only localStorage is left. */
@@ -98,9 +100,9 @@ async function answer(page, yes) {
 // ---------------------------------------------------------------------------------------------------
 
 for (const lang of LANGS) {
-    describe(`a whole game, from the form to the moderator's list (${lang}, 360x740)`, () => {
+    describe(`a whole game, from the form to the first night (${lang}, 360x740)`, () => {
         for (const count of [3, 8, 20]) {
-            it(`${count} players: every card is the saved role with the right teammates, nothing is left in the page, the list follows`, async () => {
+            it(`${count} players: every card is the saved role with the right teammates, nothing is left in the page, the night follows`, async () => {
                 await game(
                     async (page) => {
                         await goSetup(page);
@@ -132,8 +134,11 @@ for (const lang of LANGS) {
                             }
                             await page.click('#btn-reveal-hide');
                             if (i < count - 1) await page.waitForSelector('#reveal-gate:not(.hidden)');
+                            await handOff(page);
                         }
-                        await page.waitForSelector('#screen-moderator:not(.hidden)');
+                        await page.waitForSelector('#screen-night:not(.hidden)');
+                        await assertFitsPhone(page, `night, ${count}`);
+                        await assertTouchTargets(page, `night, ${count}`);
                     },
                     { lang }
                 );
@@ -151,34 +156,36 @@ for (const lang of LANGS) {
                     const godfather = cards[players.findIndex((p) => p.role === 'godfather')];
                     assert.equal(godfather.does, say(lang, 'role.godfather.does'));
                     assert.equal(cards.filter((c) => c.team !== null).length, 2, 'the mafia team of 8 is two (the godfather takes one place): each has a team line, nobody else');
-                    assert.deepEqual(await shown(page), ['screen-moderator']);
+                    assert.deepEqual(await shown(page), ['screen-night']);
                 },
                 { lang }
             );
         });
 
-        it('the moderator list: names only until asked, then every role as dealt; the toggle flips the label and the rules are listed', async () => {
+        it('the players panel: names only until asked, then every role as dealt; the toggle flips the label and the rules are listed', async () => {
             await game(
                 async (page) => {
                     const players = await dealGame(page, lang, 8);
                     await passAll(page, lang, players);
-                    await assertFitsPhone(page, 'moderator');
-                    await assertTouchTargets(page, 'moderator');
-                    assert.deepEqual(await page.locator('#moderator-list .moderator-name').allTextContents(), players.map((p) => p.name));
-                    assert.equal(await page.locator('#moderator-list .moderator-role').count(), 0, 'no role by default');
-                    await assertNoRoleInPage(page, 'moderator, roles hidden');
-                    assert.equal(await page.textContent('#btn-roles-toggle'), say(lang, 'moderator.roles.show'));
+                    await assertFitsPhone(page, 'night');
+                    await assertTouchTargets(page, 'night');
+                    assert.deepEqual(await page.locator('#players-list .player-name').allTextContents(), players.map((p) => p.name));
+                    assert.equal(await page.locator('#players-list .player-role').count(), 0, 'no role by default');
+                    await assertNoRoleInPage(page, 'night, roles hidden');
+                    assert.equal(await page.textContent('#btn-roles-toggle'), say(lang, 'game.roles.show'));
+                    assert.equal(await page.getAttribute('#btn-roles-toggle', 'aria-pressed'), 'false');
 
                     await page.click('#btn-roles-toggle');
-                    assert.deepEqual(await page.locator('#moderator-list .moderator-role').allTextContents(), players.map((p) => roleName(lang, p.role)));
-                    assert.equal(await page.textContent('#btn-roles-toggle'), say(lang, 'moderator.roles.hide'));
-                    await assertFitsPhone(page, 'moderator, roles shown');
+                    assert.deepEqual(await page.locator('#players-list .player-role').allTextContents(), players.map((p) => roleName(lang, p.role)));
+                    assert.equal(await page.textContent('#btn-roles-toggle'), say(lang, 'game.roles.hide'));
+                    assert.equal(await page.getAttribute('#btn-roles-toggle', 'aria-pressed'), 'true');
+                    await assertFitsPhone(page, 'night, roles shown');
 
                     await page.click('#btn-roles-toggle');
-                    assert.equal(await page.locator('#moderator-list .moderator-role').count(), 0, 'hidden again, out of the page');
-                    await assertNoRoleInPage(page, 'moderator, hidden again');
+                    assert.equal(await page.locator('#players-list .player-role').count(), 0, 'hidden again, out of the page');
+                    await assertNoRoleInPage(page, 'night, hidden again');
 
-                    assert.deepEqual(await page.locator('#moderator-rules li').allTextContents(), [say(lang, 'moderator.rule.selfSave.once'), say(lang, 'moderator.rule.godfather.on'), say(lang, 'moderator.rule.revealRole.on')]);
+                    assert.deepEqual(await page.locator('#rules-list li').allTextContents(), [say(lang, 'game.rule.selfSave.once'), say(lang, 'game.rule.godfather.on'), say(lang, 'game.rule.revealRole.on')]);
                 },
                 { lang }
             );
@@ -194,7 +201,7 @@ for (const lang of LANGS) {
                     const rules = (await savedState(page)).game.setup.rules;
                     assert.deepEqual(rules, { doctorSelfSave: 'never', godfather: false, revealRoleOnDeath: false });
                     await passAll(page, lang, await savedPlayers(page));
-                    assert.deepEqual(await page.locator('#moderator-rules li').allTextContents(), [say(lang, 'moderator.rule.selfSave.never'), say(lang, 'moderator.rule.godfather.off'), say(lang, 'moderator.rule.revealRole.off')]);
+                    assert.deepEqual(await page.locator('#rules-list li').allTextContents(), [say(lang, 'game.rule.selfSave.never'), say(lang, 'game.rule.godfather.off'), say(lang, 'game.rule.revealRole.off')]);
                 },
                 { lang }
             );
@@ -209,6 +216,7 @@ describe('a role is on the phone only while its player is looking', () => {
                 const players = await dealGame(page, 'fa', 8);
                 await page.click('#btn-reveal-show');
                 await page.click('#btn-reveal-hide');
+                await handOff(page);
                 await page.click('#btn-reveal-show');
                 assert.equal((await readCard(page)).role, roleName('fa', players[1].role));
                 await pageGoesAway(page, how);
@@ -221,17 +229,18 @@ describe('a role is on the phone only while its player is looking', () => {
         }
     });
 
-    it('the moderator list hides its roles when the page leaves the screen, and does not bring them back by itself', async () => {
+    it('the players panel hides its roles when the page leaves the screen, and does not bring them back by itself', async () => {
         for (const how of ['pagehide', 'visibilitychange']) {
             await game(async (page) => {
                 const players = await dealGame(page, 'fa', 6, { godfather: false });
                 await passAll(page, 'fa', players);
                 await page.click('#btn-roles-toggle');
-                assert.equal(await page.locator('#moderator-list .moderator-role').count(), 6);
+                assert.equal(await page.locator('#players-list .player-role').count(), 6);
                 await pageGoesAway(page, how);
-                assert.equal(await page.locator('#moderator-list .moderator-role').count(), 0, `${how}: no role left`);
+                assert.equal(await page.locator('#players-list .player-role').count(), 0, `${how}: no role left`);
                 await assertNoRoleInPage(page, how);
-                assert.equal(await page.textContent('#btn-roles-toggle'), say('fa', 'moderator.roles.show'));
+                assert.equal(await page.textContent('#btn-roles-toggle'), say('fa', 'game.roles.show'));
+                assert.equal(await page.getAttribute('#btn-roles-toggle', 'aria-pressed'), 'false');
             });
         }
     });
@@ -256,7 +265,7 @@ describe('a reload', () => {
                     assert.ok(stripIsolates(await page.textContent('#reveal-gate-title')).includes(players[3].name));
                     // And the game goes on from there to the end.
                     for (let i = 3; i < 8; i++) await passOnePlayer(page, { lang, index: i, count: 8, players });
-                    assert.deepEqual(await shown(page), ['screen-moderator']);
+                    assert.deepEqual(await shown(page), ['screen-night']);
                 },
                 { lang }
             );
@@ -277,18 +286,18 @@ describe('a reload', () => {
         });
     });
 
-    it('on the moderator screen: it comes back there with the roles hidden, even when they were showing', async () => {
+    it('on the first night: it comes back there with the roles hidden, even when they were showing', async () => {
         await game(async (page) => {
             const players = await dealGame(page, 'fa', 8);
             await passAll(page, 'fa', players);
             await page.click('#btn-roles-toggle');
-            assert.equal(await page.locator('#moderator-list .moderator-role').count(), 8);
+            assert.equal(await page.locator('#players-list .player-role').count(), 8);
             await reload(page);
             await resume(page);
-            assert.deepEqual(await shown(page), ['screen-moderator']);
-            assert.deepEqual(await page.locator('#moderator-list .moderator-name').allTextContents(), players.map((p) => p.name));
-            assert.equal(await page.locator('#moderator-list .moderator-role').count(), 0);
-            await assertNoRoleInPage(page, 'moderator after reload');
+            assert.deepEqual(await shown(page), ['screen-night']);
+            assert.deepEqual(await page.locator('#players-list .player-name').allTextContents(), players.map((p) => p.name));
+            assert.equal(await page.locator('#players-list .player-role').count(), 0);
+            await assertNoRoleInPage(page, 'night after reload');
         });
     });
 
@@ -312,8 +321,10 @@ describe('a reload', () => {
             assert.equal(await page.evaluate(() => document.documentElement.lang), 'en');
             assert.equal(await page.textContent('#reveal-progress'), 'Player 1 of 6');
             await page.click('#btn-reveal-show');
-            assert.equal((await readCard(page)).role, roleName('en', players[0].role));
-            assert.equal(persianIn([await page.textContent('#reveal-card-body')]).length, 0, 'no Persian role text on the English card');
+            const card = await readCard(page);
+            assert.equal(card.role, roleName('en', players[0].role));
+            // The team line of a mafia card lists the other members' names, which were typed in Persian: not a text of the app.
+            assert.equal(persianIn([card.role, card.does]).length, 0, 'no Persian role text on the English card');
         });
     });
 });
@@ -361,16 +372,23 @@ describe('the "resume" button', () => {
 });
 
 describe('a damaged save', () => {
-    const good = (game) => JSON.stringify({ version: 2, state: { phase: 'reveal', reveal: { index: 1 }, game } });
+    const record = (phase, game, version = SAVE_VERSION) => JSON.stringify({ version, state: { phase, reveal: { index: 0 }, game } });
+    const good = (game) => record('reveal', game);
+    const roleless = { version: 1, setup: { players: [{ id: 'p1', name: 'A', role: 'mafia' }, { id: 'p2', name: 'B', role: 'detective' }, { id: 'p3', name: 'C', role: 'citizen' }], rules: { doctorSelfSave: 'once', godfather: false, revealRoleOnDeath: true } }, actions: [] };
     const DAMAGED = {
         'text that is not JSON': '{ not json',
         'a list': '[1,2,3]',
         'a number': '42',
-        'a record of another version': JSON.stringify({ version: 1, state: { phase: 'moderator' } }),
-        'no game in the state': JSON.stringify({ version: 2, state: { phase: 'moderator', reveal: { index: 0 } } }),
-        'a game that is not one': JSON.stringify({ version: 2, state: { phase: 'moderator', reveal: { index: 0 }, game: { hello: 'world' } } }),
+        'a record of another version': JSON.stringify({ version: 1, state: { phase: 'night' } }),
+        'a save of the version before this one, with its moderator screen': record('moderator', roleless, SAVE_VERSION - 1),
+        'the same game and phase in the version before this one': record('night', roleless, SAVE_VERSION - 1),
+        'no game in the state': JSON.stringify({ version: SAVE_VERSION, state: { phase: 'night', reveal: { index: 0 } } }),
+        'a game that is not one': record('night', { hello: 'world' }),
+        'the removed moderator screen': record('moderator', roleless),
+        'an action the engine refuses': record('night', { ...roleless, actions: [{ type: 'MAFIA_KILL', target: 'p99' }] }),
         'a game with a role that does not exist': good({ version: 1, setup: { players: [{ id: 'p1', name: 'A', role: 'wizard' }, { id: 'p2', name: 'B', role: 'mafia' }, { id: 'p3', name: 'C', role: 'citizen' }], rules: { doctorSelfSave: 'once', godfather: false, revealRoleOnDeath: true } }, actions: [] }),
-        'a phase that is not a game phase': JSON.stringify({ version: 2, state: { phase: 'night', reveal: { index: 0 }, game: null } })
+        'a game phase with no game': record('day', null),
+        'a reveal that already has an action': record('reveal', { ...roleless, actions: [{ type: 'MAFIA_KILL', target: 'p3' }] })
     };
     for (const [what, text] of Object.entries(DAMAGED)) {
         it(`${what}: the app starts, offers no "resume", and a new game can be dealt`, async () => {
@@ -668,12 +686,12 @@ describe('asking before a game is thrown away', () => {
         });
     });
 
-    it('"new game" on the moderator\'s screen asks first; "no" keeps the list, "yes" discards the game', async () => {
+    it('"new game" on the night screen asks first; "no" keeps the game, "yes" discards it', async () => {
         await game(async (page) => {
             await passAll(page, 'fa', await dealGame(page, 'fa', 6, { godfather: false }));
             await page.click('#btn-new-game');
             await answer(page, false);
-            assert.deepEqual(await shown(page), ['screen-moderator']);
+            assert.deepEqual(await shown(page), ['screen-night']);
             assert.notEqual(await savedRecord(page), null);
             await page.click('#btn-new-game');
             await answer(page, true);
@@ -684,7 +702,7 @@ describe('asking before a game is thrown away', () => {
 });
 
 describe('the language during a game', () => {
-    it('the switch is not available from the reveal or the moderator screen; trying anyway changes nothing; after "new game" it works', async () => {
+    it('the switch is not available from the reveal or the game screens; trying anyway changes nothing; after "new game" it works', async () => {
         await game(async (page) => {
             const players = await dealGame(page, 'fa', 6, { godfather: false });
             const tryEnglish = () => page.evaluate(() => document.getElementById('btn-lang-en').click());
@@ -694,8 +712,8 @@ describe('the language during a game', () => {
             assert.equal(await page.evaluate(() => localStorage.getItem('mafia_lang')), null);
             await passAll(page, 'fa', players);
             await tryEnglish();
-            assert.equal(await page.evaluate(() => document.documentElement.lang), 'fa', 'moderator');
-            assert.equal(await page.textContent('#btn-roles-toggle'), say('fa', 'moderator.roles.show'));
+            assert.equal(await page.evaluate(() => document.documentElement.lang), 'fa', 'night');
+            assert.equal(await page.textContent('#btn-roles-toggle'), say('fa', 'game.roles.show'));
             await page.click('#btn-new-game');
             await answer(page, true);
             await page.click('#btn-lang-en');
@@ -734,17 +752,18 @@ describe('the language during a game', () => {
         });
     });
 
-    it('the English reveal and moderator screens show no Persian letter, apart from names the players typed', async () => {
+    it('the English reveal and night screens show no Persian letter, apart from names the players typed', async () => {
         await game(
             async (page) => {
                 const players = await dealGame(page, 'en', 8);
                 await page.click('#btn-reveal-show');
                 assert.deepEqual(persianIn(await recordScreen(page)), [], 'a card');
                 await page.click('#btn-reveal-hide');
+                await handOff(page);
                 assert.deepEqual(persianIn(await recordScreen(page)), [], 'a gate');
                 for (let i = 1; i < players.length; i++) await passOnePlayer(page, { lang: 'en', index: i, count: 8, players });
                 await page.click('#btn-roles-toggle');
-                assert.deepEqual(persianIn(await recordScreen(page)), [], 'the moderator list with the roles shown');
+                assert.deepEqual(persianIn(await recordScreen(page)), [], 'the first night with the roles shown');
             },
             { lang: 'en' }
         );
@@ -765,10 +784,11 @@ describe('the screens on a finger (touch phone)', () => {
                     await tapWhenStill(page, '#btn-reveal-show');
                     await page.waitForSelector('#reveal-card:not(.hidden)');
                     await tapWhenStill(page, '#btn-reveal-hide');
-                    await page.waitForSelector(i < count - 1 ? '#reveal-gate:not(.hidden)' : '#screen-moderator:not(.hidden)');
+                    await page.waitForSelector(i < count - 1 ? '#reveal-gate:not(.hidden)' : '#screen-night:not(.hidden)');
+                    await handOff(page);
                 }
                 await tapWhenStill(page, '#btn-roles-toggle');
-                assert.equal(await page.locator('#moderator-list .moderator-role').count(), count);
+                assert.equal(await page.locator('#players-list .player-role').count(), count);
             },
             { touch: true }
         );

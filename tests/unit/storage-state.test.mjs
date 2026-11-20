@@ -39,8 +39,8 @@ describe('the state at start-up', () => {
         assert.ok(Number.isInteger(SAVE_VERSION) && SAVE_VERSION >= 2);
     });
 
-    it('the session holds only what must not outlive the page: the confirm callback and the two "secret is showing" flags, all off', () => {
-        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false });
+    it('the session holds only what must not outlive the page: the confirm callback, the secret toggles, the pending picks and the hand-off clock, all off or empty', () => {
+        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false, notesShown: false, nightTarget: null, voteCounts: {}, cardHiddenAt: null });
     });
 
     it('resetSingletons puts a changed state back, and gives fresh copies (no test can leak into the next)', () => {
@@ -51,12 +51,16 @@ describe('the state at start-up', () => {
         session.pendingConfirmAction = () => {};
         session.revealCardOpen = true;
         session.rolesShown = true;
+        session.notesShown = true;
+        session.nightTarget = 'p2';
+        session.voteCounts = { p1: 1 };
+        session.cardHiddenAt = 123;
         resetSingletons();
         assert.equal(gameState.phase, 'welcome');
         assert.equal(gameState.settings.playersCount, DEFAULT_PLAYERS_COUNT);
         assert.equal(gameState.game, null);
         assert.deepEqual(gameState.reveal, { index: 0 });
-        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false });
+        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false, notesShown: false, nightTarget: null, voteCounts: {}, cardHiddenAt: null });
     });
 });
 
@@ -80,7 +84,7 @@ describe('replaceGameState', () => {
 
 describe('persist', () => {
     it('saves nothing while there is no game: the welcome screen and the setup form hold nothing worth keeping', () => {
-        for (const phase of ['welcome', 'setup', 'reveal', 'moderator']) {
+        for (const phase of ['welcome', 'setup', 'reveal', 'night', 'morning', 'day', 'dusk', 'ended']) {
             gameState.phase = phase;
             gameState.game = null;
             persist();

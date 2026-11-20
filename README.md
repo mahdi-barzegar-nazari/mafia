@@ -25,20 +25,25 @@ Mafia (مافیا) is the classic party game in which a hidden minority tries to
 
 It ships as native ES modules, a service worker and plain CSS, with no framework and no bundler.
 
-> **Status: step 3A of 4: the game can be set up, dealt and handed out; the night and day screens are not there yet.** The app shell of step 1 and the **rules engine** of step 2 (`js/game/`, `js/data/`; the rules are in [`docs/game-rules.md`](./docs/game-rules.md)) are now joined by the first game screens: the **setup form** (a name per player and the three rule options), the **hand-off of the roles** (the phone goes from player to player; each sees only their own card), the **moderator's list** and **save and resume**. The moderator's screen is temporary: it lists the players and the rules, and the night and day screens (step 3B) come next.
+> **Status: step 3 of 4: the game is playable.** The app shell of step 1 and the **rules engine** of step 2 (`js/game/`, `js/data/`; the rules are in [`docs/game-rules.md`](./docs/game-rules.md)) now have all their screens: the **setup form**, the **hand-off of the roles**, the **night** (the moderator wakes the mafia, the doctor and the detective in turn and records each choice), the **morning** (who was eliminated, and the moderator's notes behind a toggle), the **day** (a vote counted with a stepper per player), the **dusk** (the result), the **end** (who won, every role), **undo** and **save and resume** at every step. Step 4 is the finish.
 
 ## What the app has
 
 - **Welcome screen.** The name, a one-line tagline, the round play button, the language switch, the theme selector, the credit line and, behind a long press on the title, the version line.
 - **Setup form.** The number of players (3 to 20), one name field per player (default «بازیکن N» / "Player N", at most 24 letters), the doctor's self-save rule (never, once, always), the godfather (off by default; the switch is disabled below 6 players and turns itself off if the count drops), whether the role of an eliminated player is announced, a help (i) button for each option, and "Deal roles". The engine checks the game; every refusal is shown as a sentence on the field that caused it. Names and options are not remembered between games.
 - **Hand-off of the roles.** One player at a time: "Hand the phone to {name}", then "I am {name}" shows the role card (the role, a line on what it does, and, for the mafia team, who else is on it; the godfather's card says the detective sees him as innocent). "Hide and pass on" takes the card **out of the page** and moves to the next gate. The language is locked from the first gate on.
-- **The moderator's list (temporary).** The players, with roles hidden until "Show roles" is pressed (hidden again when the page goes out of sight), the rules in force, and "New game".
-- **Save and resume.** Once a game is dealt it is saved after every hand-off (`mafia_full_state_master`). The welcome screen shows "Resume game" only when a valid save exists; resuming a hand-off returns to the next player's gate, never straight to a card. A damaged or tampered save is ignored.
+- **The night.** The three steps (mafia, doctor, detective) as a short list with a status each: done, now, waiting, or nobody alive (a step nobody is alive for is not skipped: a line tells the moderator to pause as if calling that role, so the table cannot tell). The current step says whom to wake and what to ask, then lists the players the rules allow (the doctor's own name is missing when self-save is refused; the detective's never appears). Tapping a name only picks it; a separate "Confirm: {name}" records it. **The screen shows nothing about what was chosen**, so a glance at the phone reveals nothing. The night ends by itself when the last step is recorded.
+- **The morning.** The public announcement (who was eliminated, with the role only if the rules announce it, or "nobody died") and "Continue". What the detective learned (the godfather reads as innocent) and whether the doctor saved the target are moderator notes behind a "Show moderator notes" toggle: closed by default, closed again when the page goes out of sight or the phase changes, and **not in the page** while closed.
+- **The day and the dusk.** The vote is a list of the living with a minus, a count and a plus each, "{used} of {max} votes given" (never more votes than living players; zero votes is allowed: nobody is eliminated) and "Close the vote". The dusk shows who was eliminated, a tie, or that nobody was.
+- **The end.** Who won, and every player with the role and the mark; "New game" asks nothing now that the game is over.
+- **Players panel, undo, new game.** Under every game screen: the players with an alive or eliminated mark (roles **hidden** until "Show roles", and out of the page again when the page goes out of sight or the phase changes), the rules of this game in a closed section, then two quiet buttons, **Undo** (takes the last move back; works from the end screen too) and **New game** (after a question). They sit below the content on purpose, so a finger does not hit them by accident.
+- **A guard against the double tap.** For 800 ms after a role card is hidden the buttons of the game ignore presses, so a quick second tap on "Hide and pass on" cannot show the next role (or open the roles of the first night) to the person still holding the phone.
+- **Save and resume.** Once a game is dealt it is saved after every hand-off and every move (`mafia_full_state_master`). The welcome screen shows "Resume game" only when a valid save exists; resuming a hand-off returns to the next player's gate, never straight to a card, and resuming a game in progress returns to the screen and, at night, the step the rules engine says, with nothing shown or picked. A damaged, tampered or older-version save is ignored.
 - **Persian and English.** Persian is the default; English is one tap away on the welcome screen (see [Switch the language](#switch-the-language)). A person who chose English never sees the Persian page flash first.
 - **8 themes**, one token system, dynamic viewport sizing (`100dvh`) and safe-area padding for edge-to-edge phones. Every colour comes from the theme tokens; only the colours that carry a meaning stay the same in every theme.
 - **Offline-first and installable.** A versioned service worker precaches every shipped file; a one-line install hint covers the browsers that have no install button (iPhone, iPad, Firefox for Android).
 - **Strict Content-Security-Policy.** No inline script and no inline style; the page is locked to its own origin.
-- **A phase machine ready to grow.** `welcome` and `setup` are wired through the same `dispatch` / `setPhase` / `commitState` seams the finished Spyfall app uses, so the next step adds phases without restructuring.
+- **A phase machine that mirrors the engine.** `welcome`, `setup` and `reveal`, then exactly the engine's phases (`night`, `morning`, `day`, `dusk`, `ended`), all wired through the same `dispatch` / `setPhase` / `commitState` seams the finished Spyfall app uses. After the reveal the app's phase is derived from the engine after every action and every undo, never kept separately.
 
 ## Quickstart
 
@@ -59,9 +64,9 @@ npm run preview        # serves ./dist to test real offline caching
 
 ```bash
 npm install            # dev tooling only: ESLint, Prettier, Playwright (this also writes package-lock.json: commit it, CI runs `npm ci`)
-npm test               # 1000 unit tests (built-in node:test, no dependencies): the app shell, the rules engine and the game screens
+npm test               # 1185 unit tests (built-in node:test, no dependencies): the app shell, the rules engine and the game screens
 npx playwright install chromium
-npm run test:e2e       # 275 real-browser tests of the production build: smoke test, offline first load (also a whole game), language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint, the whole game flow, and the new screens in all eight themes and with the keyboard only
+npm run test:e2e       # 326 real-browser tests of the production build: smoke test, offline first load (also a game with a night played), language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint, the setup and the reveal, whole games played to the end (town and mafia wins, the doctor's save and self-save rules, a tie, the godfather in the notes, a dead doctor or detective), undo and reload at every phase, hidden roles and notes, the double tap, a night and a vote with the keyboard only, and every game screen for 3, 8 and 20 players in all eight themes and both languages
 npm run lint
 ```
 
@@ -69,7 +74,7 @@ Run the unit and the browser suites one after the other, not at the same time: t
 
 ### Switch the language
 
-On the welcome screen tap **English** (or **فارسی** to go back). The two buttons always sit in the same left-to-right order, each written in its own language, so you can find yours even when the page is in the other one. The choice is remembered on the device (`localStorage` key `mafia_lang`) and applies at the next visit too. Persian stays the default; the browser's language is never used to guess. Once a game is dealt, the language can only be changed outside the game (on the welcome screen): the reveal and the moderator's screen do not offer the switch, and the app ignores a request to change the language while a game is on screen.
+On the welcome screen tap **English** (or **فارسی** to go back). The two buttons always sit in the same left-to-right order, each written in its own language, so you can find yours even when the page is in the other one. The choice is remembered on the device (`localStorage` key `mafia_lang`) and applies at the next visit too. Persian stays the default; the browser's language is never used to guess. Once a game is dealt, the language can only be changed outside the game (on the welcome screen): the reveal and the game screens do not offer the switch, and the app ignores a request to change the language while a game is on screen.
 
 ## Architecture
 
@@ -82,8 +87,8 @@ On the welcome screen tap **English** (or **فارسی** to go back). The two bu
 │   ├── preinit.js             # classic <head> script: language and direction before the first paint (English users)
 │   ├── app/                   # composition root: the action handler behind dispatch(), and wireApp()
 │   ├── core/                  # config (rules, theme colours), state, storage, phase (setPhase, commitState), dispatch port, buildInfo (stamped version and hash)
-│   ├── game/                  # the rules engine: roles table, rules, engine (night, vote, win, undo), view, save/load (pure, not wired to the UI yet)
-│   ├── ui/                    # rendering, setup form, event bindings, theme, language switch, toasts, focus trap, build line
+│   ├── game/                  # the rules engine: roles table, rules, engine (night, vote, win, undo), view, save/load (pure; the UI uses it only through its public functions)
+│   ├── ui/                    # rendering, setup form, the game screens and their pure models (night, vote, outcomes), the hand-off guard, event bindings, theme, language switch, toasts, focus trap, build line
 │   ├── platform/              # wake lock, anti-zoom, install prompt and install hint, service worker registration
 │   ├── data/                  # the role and night-step constants (roles.js)
 │   ├── i18n/                  # translation core (t, language switching) and the Persian and English catalogs
@@ -124,8 +129,9 @@ Pushes to `main` run [`deploy.yml`](./.github/workflows/deploy.yml): unit tests,
 
 - [x] Step 1: the app shell: infrastructure, welcome and setup placeholder, tests, documentation
 - [x] Step 2: the rules engine: roles, night, vote, win, undo, save/load, tests, `docs/game-rules.md`; no screens
-- [x] Step 3A (this version): the setup form, the hand-off of the roles, the moderator's list, save and resume
-- [ ] Step 3B: the night and day screens. Step 4: the finish (not started)
+- [x] Step 3A: the setup form, the hand-off of the roles, save and resume
+- [x] Step 3B (this version): the night, morning, day, dusk and end screens, the players panel, undo, the hand-off guard. **The game is playable.**
+- [ ] Step 4: the finish (not started)
 
 ## Contributing
 

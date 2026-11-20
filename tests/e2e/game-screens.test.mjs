@@ -1,5 +1,5 @@
 /**
- * The new screens of step 3A (setup form, hand-off gate, role card, moderator's list, the two dialogs) in a real
+ * The screens of step 3A (setup form, hand-off gate, role card, the two dialogs) and the first night of 3B in a real
  * Chromium at 360x740 against the PRODUCTION build:
  *
  *  - in each of the eight themes and both languages: nothing sticks out sideways, every control is finger-sized,
@@ -14,7 +14,8 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { startApp } from './helpers/app.mjs';
-import { LANGS, THEMES, assertFitsPhone, assertTouchTargets, deal, fillNames, goSetup, makeNames, passOnePlayer, savedPlayers, savedState, say, setCount, setGodfather, shown, withGame } from './helpers/game.mjs';
+import { assertReadable } from './helpers/contrast.mjs';
+import { LANGS, THEMES, assertFitsPhone, assertTouchTargets, deal, fillNames, goSetup, handOff, makeNames, passOnePlayer, savedPlayers, savedState, say, setCount, setGodfather, shown, withGame } from './helpers/game.mjs';
 
 let app;
 let browser;
@@ -35,79 +36,15 @@ const activeId = (page) => page.evaluate(() => document.activeElement.id || docu
 // Contrast
 // ---------------------------------------------------------------------------------------------------
 
-/**
- * Runs in the page: for each selector, the WCAG contrast of the text colour of every showing element that has text
- * against what is behind it (the nearest opaque background, with any translucent layers in between composed over
- * it). Returns `{ selector, text, ratio }` for the worst element of each selector.
- */
-function measureContrast(selectors) {
-    const parse = (value) => {
-        let m = value.match(/^rgba?\(([^)]+)\)$/);
-        if (m) {
-            const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
-            return [r, g, b, a];
-        }
-        m = value.match(/^color\(srgb ([^)]+)\)$/);
-        if (m) {
-            const [r, g, b, a = 1] = m[1].split(/[ /]+/).filter(Boolean).map(Number);
-            return [r * 255, g * 255, b * 255, a];
-        }
-        return null;
-    };
-    const over = (top, bottom) => {
-        const a = top[3] + bottom[3] * (1 - top[3]);
-        return a === 0 ? [0, 0, 0, 0] : [0, 1, 2].map((i) => (top[i] * top[3] + bottom[i] * bottom[3] * (1 - top[3])) / a).concat(a);
-    };
-    const luminance = ([r, g, b]) => {
-        const lin = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-    };
-    const backdrop = (el) => {
-        const layers = [];
-        for (let node = el; node; node = node.parentElement) {
-            const colour = parse(getComputedStyle(node).backgroundColor);
-            if (colour && colour[3] > 0) layers.push(colour);
-            if (colour && colour[3] >= 1) break;
-        }
-        let result = [9, 13, 22, 1];
-        for (const layer of layers.reverse()) result = over(layer, result);
-        return result;
-    };
-    const out = [];
-    for (const selector of selectors) {
-        let worst = null;
-        for (const el of document.querySelectorAll(selector)) {
-            if (el.closest('.screen-view.hidden') || el.closest('.hidden') || !el.textContent.trim()) continue;
-            const rect = el.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) continue;
-            const fg = parse(getComputedStyle(el).color);
-            if (!fg) continue;
-            const bg = backdrop(el);
-            const text = over(fg, bg);
-            const [hi, lo] = [luminance(text), luminance(bg)].sort((a, b) => b - a);
-            const ratio = (hi + 0.05) / (lo + 0.05);
-            if (!worst || ratio < worst.ratio) worst = { selector, text: el.textContent.trim().slice(0, 30), ratio: Math.round(ratio * 100) / 100 };
-        }
-        if (worst) out.push(worst);
-    }
-    return out;
-}
-
-async function assertReadable(page, selectors, where, { min = 4.5 } = {}) {
-    const found = await page.evaluate(measureContrast, selectors);
-    assert.ok(found.length > 0, `${where}: found text to measure`);
-    for (const item of found) assert.ok(item.ratio >= min, `${where}: "${item.text}" (${item.selector}) has contrast ${item.ratio}, needs ${min}`);
-}
-
 const SETUP_TEXT = ['#screen-setup h2', '#screen-setup label', '#screen-setup legend', '#screen-setup .field-hint', '#screen-setup .toggle-label-wrap span', '#screen-setup .name-input', '#screen-setup select', '.info-btn'];
 const GATE_TEXT = ['#reveal-progress', '#reveal-gate-title', '#reveal-gate p'];
 const CARD_TEXT = ['.reveal-card-for', '.reveal-card-does', '.reveal-card-team', '#reveal-card p'];
-const MODERATOR_TEXT = ['#screen-moderator h2', '#screen-moderator h3', '#screen-moderator p', '.moderator-name', '.moderator-role', '#moderator-rules li'];
+const NIGHT_TEXT = ['#screen-night h2', '#screen-night p', '.step-name', '.step-status', '#game-chrome h3', '.player-name', '.player-role', '.player-status', '#rules-list li', '#rules-details summary'];
 
 for (const lang of LANGS) {
     describe(`the new screens in all eight themes (${lang}, 360x740)`, () => {
         for (const theme of THEMES) {
-            it(`${theme}: setup, gate, every card, the moderator's list and both dialogs fit the phone and can be read`, async () => {
+            it(`${theme}: setup, gate, every card, the first night and both dialogs fit the phone and can be read`, async () => {
                 await game(
                     async (page) => {
                         assert.equal(await page.getAttribute('body', 'data-theme'), theme);
@@ -140,13 +77,15 @@ for (const lang of LANGS) {
                             await assertReadable(page, ['.reveal-role'], `${where} card ${i + 1} title`, { min: 3 });
                             await page.click('#btn-reveal-hide');
                             if (i < players.length - 1) await page.waitForSelector('#reveal-gate:not(.hidden)');
+                            await handOff(page);
                         }
-                        await page.waitForSelector('#screen-moderator:not(.hidden)');
-                        await assertFitsPhone(page, `${where} moderator`);
+                        await page.waitForSelector('#screen-night:not(.hidden)');
+                        await assertFitsPhone(page, `${where} night`);
                         await page.click('#btn-roles-toggle');
-                        await assertFitsPhone(page, `${where} moderator, roles shown`);
-                        await assertTouchTargets(page, `${where} moderator`);
-                        await assertReadable(page, MODERATOR_TEXT, `${where} moderator, roles shown`);
+                        await page.locator('#rules-details summary').click();
+                        await assertFitsPhone(page, `${where} night, roles shown`);
+                        await assertTouchTargets(page, `${where} night`);
+                        await assertReadable(page, NIGHT_TEXT, `${where} night, roles shown`);
 
                         // The confirm dialog.
                         await page.click('#btn-new-game');
@@ -176,7 +115,7 @@ async function tabTo(page, id, limit = 40) {
 
 for (const lang of LANGS) {
     describe(`a run with the keyboard only (${lang})`, () => {
-        it('welcome -> form -> six cards -> moderator\'s list -> new game -> welcome, with no mouse', async () => {
+        it('welcome -> form -> six cards -> the first night -> new game -> welcome, with no mouse', async () => {
             await game(
                 async (page) => {
                     // Welcome: the start button is reachable, Enter opens the form, and the focus is on the form's heading.
@@ -229,16 +168,17 @@ for (const lang of LANGS) {
                         await page.keyboard.press('Tab');
                         assert.equal(await activeId(page), 'btn-reveal-hide');
                         await page.keyboard.press('Enter');
+                        await handOff(page); // a person takes longer than the hand-off guard between two cards
                     }
 
-                    // The moderator's list.
-                    await page.waitForSelector('#screen-moderator:not(.hidden)');
-                    assert.equal(await page.evaluate(() => document.activeElement.tagName), 'H2');
+                    // The first night: the focus is on its heading; the players panel opens and closes.
+                    await page.waitForSelector('#screen-night:not(.hidden)');
+                    assert.equal(await activeId(page), 'title-night');
                     await tabTo(page, 'btn-roles-toggle');
                     await page.keyboard.press('Space');
-                    assert.equal(await page.locator('#moderator-list .moderator-role').count(), 6);
+                    assert.equal(await page.locator('#players-list .player-role').count(), 6);
                     await page.keyboard.press('Space');
-                    assert.equal(await page.locator('#moderator-list .moderator-role').count(), 0);
+                    assert.equal(await page.locator('#players-list .player-role').count(), 0);
 
                     // New game: the question keeps the focus inside, "yes" goes back to the start.
                     await tabTo(page, 'btn-new-game');

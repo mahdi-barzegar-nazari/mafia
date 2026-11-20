@@ -31,7 +31,7 @@ export function revealProgress(index, count) {
 
 /**
  * What "hide and pass on" does: `{ done: false, index }` with the next player's index, or `{ done: true, index: 0 }`
- * after the last player (the moderator's list comes next, and nothing is left to count).
+ * after the last player (the first night comes next, and nothing is left to count).
  */
 export function advanceReveal(index, count) {
     const here = revealProgress(index, count);

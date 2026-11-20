@@ -556,14 +556,77 @@ select.input-control { min-height: 44px; }
 .reveal-card-does { color: var(--text-primary); font-size: 0.98rem; }
 .reveal-card-team { color: var(--text-primary); background: color-mix(in srgb, var(--brand-rose) 14%, transparent); border: 1px solid color-mix(in srgb, var(--brand-rose) 45%, transparent); border-radius: 14px; padding: 10px 12px; overflow-wrap: anywhere; }
 
-/* ---- Moderator screen ---- */
-.moderator-list, .moderator-rules { list-style: none; padding: 0; margin: 0 0 12px; }
-.moderator-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 14px; margin-bottom: 6px; background: var(--surface-input); border: 1px solid var(--border-glow); border-radius: 14px; }
-.moderator-name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; font-size: 0.95rem; }
-.moderator-role { flex: none; font-size: 0.85rem; font-weight: 700; color: var(--brand-primary); }
-.moderator-role.is-mafia { color: var(--brand-rose); }
-.moderator-rules-title { font-size: 1rem; margin-top: 18px; }
-.moderator-rules li { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6; padding-block: 4px; text-align: start; }
+/* ---- Game screens (night, morning, day, dusk, ended) and the chrome below them ----
+   Every colour is a theme token (or a mix of two); every offset is logical, so the screens read the same in both
+   directions. A name is user text in either script: it sits in its own <strong>/<span> that isolates it (see
+   .name-input, strong above) and wraps anywhere, so a 24-letter name never pushes the phone sideways. */
+.game-title { color: var(--brand-primary); font-size: 1.5rem; overflow-wrap: anywhere; }
+.announcement { color: var(--text-primary); font-size: 1.1rem; line-height: 1.8; padding: 16px 14px; margin-bottom: 8px; background: var(--surface-input); border: 1px solid var(--border-glow); border-radius: 16px; overflow-wrap: anywhere; }
+.winner-banner { color: var(--brand-primary); font-size: 1.5rem; font-weight: 800; }
+
+/* Night: the three steps as a list, the one to play now highlighted, then its instruction and its targets. */
+.night-steps { list-style: none; padding: 0; margin: 0 0 14px; }
+.night-step { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; min-height: 44px; padding: 8px 14px; margin-bottom: 6px; background: var(--surface-input); border: 1px solid var(--border-glow); border-radius: 14px; }
+.night-step.is-current { border-color: var(--brand-primary); background: color-mix(in srgb, var(--brand-primary) 14%, var(--surface-input)); }
+.night-step.is-done { color: var(--text-secondary); }
+.night-step.is-nobody { border-style: dashed; color: var(--text-secondary); }
+.step-mark { width: 22px; text-align: center; font-weight: 800; color: var(--text-secondary); }
+.step-mark::before { content: "\25CB"; }
+.is-current .step-mark { color: var(--brand-primary); }
+.is-current .step-mark::before { content: "\25CF"; }
+.is-done .step-mark { color: var(--brand-emerald); }
+.is-done .step-mark::before { content: "\2713"; }
+.is-nobody .step-mark::before { content: "\2013"; }
+.step-name { font-weight: 700; font-size: 0.95rem; min-width: 0; overflow-wrap: anywhere; }
+.step-status { font-size: 0.8rem; color: var(--text-secondary); text-align: end; }
+.is-current .step-status { color: var(--text-primary); font-weight: 700; }
+.step-pause { grid-column: 1 / -1; text-align: start; font-size: 0.82rem; margin: 6px 0 2px; }
+.night-current { margin-top: 6px; }
+.night-instruction { color: var(--text-primary); font-size: 1.02rem; font-weight: 700; margin-bottom: 8px; }
+.target-list { list-style: none; padding: 0; margin: 0 0 6px; }
+.target-item .btn { margin-top: 8px; }
+.night-target { min-height: 48px; justify-content: space-between; text-align: start; }
+.night-target .target-name { min-width: 0; overflow-wrap: anywhere; font-size: 0.95rem; }
+.night-target::after { content: ""; flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border-glow); display: grid; place-items: center; font-size: 0.8rem; line-height: 1; }
+.night-target[aria-pressed="true"] { border-color: var(--brand-primary); background: color-mix(in srgb, var(--brand-primary) 22%, var(--surface-input)); color: var(--text-primary); }
+.night-target[aria-pressed="true"]::after { content: "\2713"; border-color: var(--brand-primary); background: var(--brand-primary); color: var(--bg-body); }
+.night-confirm { margin-top: 16px; min-height: 52px; overflow-wrap: anywhere; }
+
+/* Morning: the moderator notes are a closed box until asked for. */
+.notes-box { text-align: start; background: var(--surface-input); border: 1px solid var(--border-glow); border-radius: 14px; padding: 8px 14px; margin-top: 10px; }
+.notes-list { list-style: none; padding: 0; margin: 0; }
+.notes-list li { color: var(--text-primary); font-size: 0.9rem; line-height: 1.7; padding-block: 5px; overflow-wrap: anywhere; }
+
+/* Day: one row per living player, a minus, the count and a plus. */
+.vote-counter { color: var(--text-primary); font-weight: 700; margin-bottom: 8px; }
+.vote-list { list-style: none; padding: 0; margin: 0 0 8px; }
+.vote-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 52px; padding: 4px; padding-inline: 14px 8px; margin-bottom: 6px; background: var(--surface-input); border: 1px solid var(--border-glow); border-radius: 14px; }
+.vote-name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; font-size: 0.95rem; }
+.stepper { display: flex; align-items: center; gap: 4px; flex: none; }
+.stepper-btn { width: 44px; min-width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 0; border-radius: 12px; font-size: 1.4rem; line-height: 1; }
+.stepper-minus::before { content: "\2212"; }
+.stepper-plus::before { content: "+"; }
+.stepper-count { min-width: 2.2ch; text-align: center; font-weight: 800; font-size: 1.1rem; }
+
+/* The chrome: the players panel, then the two quiet buttons. */
+.game-chrome { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border-glow); }
+.players-panel h3 { font-size: 1rem; }
+.players-list, .rules-list { list-style: none; padding: 0; margin: 0 0 6px; }
+.player-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 2px; min-height: 36px; padding: 5px 12px; margin-bottom: 4px; background: var(--surface-input); border: 1px solid var(--border-glow); border-radius: 12px; }
+.player-name { flex: 1 1 8ch; min-width: 0; overflow-wrap: anywhere; font-weight: 700; font-size: 0.9rem; }
+.player-role { font-size: 0.8rem; font-weight: 700; color: var(--brand-primary); }
+.player-role.is-mafia { color: var(--brand-rose); }
+.player-status { flex: none; font-size: 0.75rem; color: var(--text-secondary); }
+.player-status::before { content: "\25CF\00A0"; color: var(--brand-emerald); }
+.player-row.is-dead { opacity: 0.65; }
+.player-row.is-dead .player-name { text-decoration: line-through; }
+.player-row.is-dead .player-status::before { content: "\2715\00A0"; color: var(--brand-rose); }
+.rules-details { margin-top: 8px; text-align: start; }
+.rules-details summary { display: flex; align-items: center; min-height: 44px; padding-inline: 4px; color: var(--text-secondary); font-size: 0.85rem; font-weight: 700; cursor: pointer; }
+.rules-details summary:focus-visible { outline: 3px solid var(--brand-primary); outline-offset: 3px; border-radius: 8px; }
+.rules-list li { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6; padding-block: 4px; text-align: start; }
+.game-actions { display: flex; gap: 10px; margin-top: 18px; }
+.btn-quiet { flex: 1; min-height: 44px; margin-top: 0; padding-block: 8px; font-size: 0.82rem; font-weight: 500; opacity: 0.85; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 @media (max-width: 420px) { .app-container { padding: 16px; border-radius: 20px; } }

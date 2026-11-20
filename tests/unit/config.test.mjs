@@ -43,8 +43,8 @@ describe('configuration stays in sync with index.html', () => {
         const screens = [...html.matchAll(/<section id="screen-([a-z]+)"/g)].map((m) => m[1]).sort();
         assert.deepEqual(screens, [...VALID_PHASES].sort());
     });
-    it('the phases known so far are the welcome screen, the setup form, the reveal screen and the moderator\'s screen, nothing else', () => {
-        assert.deepEqual([...VALID_PHASES], ['welcome', 'setup', 'reveal', 'moderator']);
+    it('the phases known are the welcome screen, the setup form, the reveal screen and the five phases of the engine, nothing else', () => {
+        assert.deepEqual([...VALID_PHASES], ['welcome', 'setup', 'reveal', 'night', 'morning', 'day', 'dusk', 'ended']);
     });
     it('the players-count field starts with the default count', () => {
         assert.match(html, new RegExp(`<input[^>]*id="setup-players-count"[^>]*value="${DEFAULT_PLAYERS_COUNT}"`));

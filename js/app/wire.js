@@ -6,7 +6,7 @@
 
 import { setDispatchHandler } from '../core/dispatch.js';
 import { setBeforePhaseChange, setRenderer } from '../core/phase.js';
-import { session } from '../core/state.js';
+import { resetScreenSession } from '../core/state.js';
 import { renderUI } from '../ui/render.js';
 import { handleAction } from './actions.js';
 
@@ -14,9 +14,7 @@ import { handleAction } from './actions.js';
 export function wireApp() {
     setDispatchHandler(handleAction);
     setRenderer(renderUI);
-    // Every screen opens with its secrets hidden: no role card, no roles in the moderator's list.
-    setBeforePhaseChange(() => {
-        session.revealCardOpen = false;
-        session.rolesShown = false;
-    });
+    // Every screen opens with its secrets hidden and nothing picked: no role card, no roles in the players panel, no
+    // moderator notes, no target, no votes counted. (The hand-off guard's clock is left alone on purpose.)
+    setBeforePhaseChange(() => resetScreenSession());
 }

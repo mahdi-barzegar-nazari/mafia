@@ -2,13 +2,49 @@
 
 ## Unreleased
 
-Step 3A of 4: the setup form, the hand-off of the roles, the moderator's list, and save and resume. The night and day screens (step 3B) are **not** in this version. Step 2's engine (below) is now wired into the app.
+Step 3 of 4: **the game is playable.** Step 3B adds the night, the morning, the day, the dusk and the end of the game, the players panel, undo and a guard against the double tap, on top of step 3A's setup form, hand-off of the roles and save and resume, and step 2's engine.
+
+### Step 3B of 4: the game screens
+
+#### Added
+
+- **Five phases of the engine as screens:** `night`, `morning`, `day`, `dusk`, `ended` (`VALID_PHASES` is now `welcome`, `setup`, `reveal` and these five), a `<section>` each in `index.html`, bindings and actions (`NIGHT_SELECT`, `NIGHT_CONFIRM`, `TOGGLE_NOTES`, `CONTINUE_GAME`, `VOTE_STEP`, `VOTE_CLOSE`, `UNDO_GAME`, `NEW_GAME_NOW`). After the reveal `gameState.phase` always equals the engine phase of `getState(gameState.game)` and is derived again after every action and every undo.
+- **The night screen.** The three steps with a status each (done, now, waiting, nobody alive); a step nobody is alive for stays in the list with a line telling the moderator to pause as if calling that role. The current step's instruction (the mafia step says the team, godfather included while one is alive, agree on ONE target), one button per target the engine allows (`aria-pressed`), a separate "Confirm: {name}" that is disabled until a name is picked and is the only thing that calls `applyAction`. The doctor's own name is missing, with a note, when self-save is refused; the detective's never appears. **Nothing about a chosen target is on the screen**; a finished step is only marked done.
+- **The morning.** The public announcement (the role of the eliminated only when the engine put it in the announcement, never looked up in the player list) or "nobody died"; "Continue" (to the end screen when the engine already has a winner). The moderator notes (what the detective learned, the godfather reading as "not mafia"; that the doctor saved the target) are behind a toggle with `aria-expanded`, closed by default, closed on every phase change and when the page goes out of sight, and **not in the DOM** while closed.
+- **The day.** A stepper (minus, count, plus) per living player, "{used} of {max} votes given", a plus that is disabled when no vote is left (the total never exceeds the living), "Close the vote" (`CAST_VOTES` with the non-zero counts); zero votes is allowed and said so in a hint. Counts live in `session`, reset on every phase change, every undo and every reload; they survive the page going out of sight (not secret).
+- **The dusk and the end.** The result of the vote (the eliminated with the role only if announced, a tie, or no votes); who won and every player with role and mark, with no toggle and a "New game" that asks nothing.
+- **The shared chrome** (`#game-chrome`, below every game screen): the players panel (alive or eliminated mark; roles hidden behind "Show roles", out of the DOM while hidden and hidden again on `pagehide`, `visibilitychange` and every phase change), the rules of the game one line each in a closed `<details>`, **Undo** (disabled while there is no action) and **New game** (after a question), kept low and quiet.
+- **The hand-off guard (fix of the 3A double-tap leak).** For `HAND_OFF_GUARD_MS` = 800 ms after a role card was hidden the buttons of the game ignore presses: the next gate's "I am {name}" button and, after the last card, every control of the first night (the roles toggle included). 799 ms is ignored, 800 ms is accepted. The clock is injected (`ui/clock.js`: `now()` reads `performance.now()`, `setNow()` replaces it), so unit tests need no waiting and the browser tests use the page's fake clock. A "Hide and pass on" with no card showing is ignored too, so a stray tap cannot skip a player.
+- **Focus and announcements.** Focus goes to the screen's heading on every new screen and on every new step of the night (also after an undo), never on a redraw; one polite live line (`#game-live`) says the phase and the current step, never a role, a name or a pick. The stepper buttons and the lists have catalog `aria-label`s.
+- **Catalog keys:** `game.*`, `night.*`, `morning.*`, `day.*`, `dusk.*`, `ended.*` (the old `moderator.*` keys are gone), the same keys and placeholders in `fa.js` and `en.js`, each written in its own language.
+- **New files:** `ui/gameScreens.js`, `ui/gameChrome.js`, `ui/nightModel.js`, `ui/voteModel.js`, `ui/outcomes.js`, `ui/outcomeTexts.js`, `ui/errorTexts.js`, `ui/clock.js`, `ui/handOffGuard.js`; tests `night-model`, `vote-model`, `outcomes`, `hand-off-guard`, `game-i18n`, `game-play` (unit), `play-through`, `play-chrome`, `play-layout-fa`, `play-layout-en` (end to end), helpers `tests/unit/helpers/gamePage.mjs`, `gameApp.mjs`, `tests/e2e/helpers/contrast.mjs`, `layoutRun.mjs`; the pictures in `tests/e2e/screenshots/` now show every new screen (Persian and English, the dark default theme).
+- **Tests.** Unit: 1000 to 1185. End to end: 275 to 326. Twelve mutations were each run against their own tests and each made at least one fail: Confirm applying on the first tap, the night screen showing the chosen target, the notes open by default, the roles shown by default, the guard removed (also against the real double click in the browser), undo doing nothing on the end screen, the phase not re-derived after undo, the stepper allowing more votes than living players, a tie announcing an elimination, the dead doctor's pause line missing, the role shown with the rule off, and a reload restoring a picked name.
+
+#### Changed
+
+- `SAVE_VERSION` is 3 (`phase` is now the engine's phase after the reveal; the `moderator` phase is gone). A version-2 record is ignored. `loadSavedGame` resumes any of reveal, night, morning, day, dusk and ended; for a game past the reveal the phase is the engine's own phase of the replayed game, not the saved label, and a `reveal` save that already has an action is refused.
+- `session` gains `notesShown`, `nightTarget`, `voteCounts` and `cardHiddenAt`; `resetScreenSession()` (called on every phase change) puts all of them but the guard's clock back.
+- `NAVIGATE` enters a game screen only while there is a game and, after the reveal, only the engine's own phase.
+- The hidden game screens hold nothing of their last drawing (no step, pick, vote row or note), and the lists are rebuilt when a name changes, not only when an id does.
+- Contrast: the "now" label of the current night step uses the primary text colour (the brand colour on its own tint was 4.25:1 in the cyber theme).
+- Tests updated for the new phases and screens: `bindings`, `config`, `game-flow`, `game-layering`, `lang-round-trip`, `lang-switch`, `phase`, `phase-flow`, `saved-game`, `screens`, `storage-state` (unit); `game-flow`, `game-screens`, `offline`, `take-screenshots` (end to end); the e2e helpers run on Playwright's page clock and jump over the 800 ms guard after each hand-off. `tests/e2e/fixtures/persian-baseline.json` and `tests/e2e/helpers/record.mjs` are untouched.
+- `README.md` and `docs/architecture.md`: status, features, phases, state model, save format, the game screens, the guard and test counts. `docs/game-rules.md` is untouched.
+
+#### Removed
+
+- The temporary moderator screen: `js/ui/moderator.js`, the `moderator` phase, `#screen-moderator`, the `moderator.*` keys and the moderator pictures in `tests/e2e/screenshots/`.
+
+#### Known
+
+- A quick second tap on "I am {name}" can land on that card's "Hide and pass on" and hide a card its player has barely seen (the reverse of the double tap fixed here). Nothing leaks, but a player can be skipped. Left alone; see `docs/architecture.md`.
+- The detective's answer is only in the morning notes: the night screen shows nothing about a target.
+- A flaky assertion of the 3A end-to-end suite (the English role card of a mafia player lists teammates whose names were typed in Persian) was narrowed to the role texts; it failed about one run in three before.
 
 ### Step 3A of 4: the game screens
 
 #### Added
 
-- **Four phases** (`welcome`, `setup`, `reveal`, `moderator`): `VALID_PHASES`, a `<section>` each in `index.html`, bindings, actions (`DEAL_GAME`, `RESUME_GAME`, `REVEAL_SHOW`, `REVEAL_HIDE`, `CONFIRM_LEAVE_REVEAL`, `CONFIRM_NEW_GAME`, `TOGGLE_ROLES`, `HIDE_SECRETS`) and renderers. `reveal` and `moderator` count as a game in progress, so the language switch is locked there.
+- **Four phases** (`welcome`, `setup`, `reveal`, `moderator`; the last one is gone in step 3B): `VALID_PHASES`, a `<section>` each in `index.html`, bindings, actions (`DEAL_GAME`, `RESUME_GAME`, `REVEAL_SHOW`, `REVEAL_HIDE`, `CONFIRM_LEAVE_REVEAL`, `CONFIRM_NEW_GAME`, `TOGGLE_ROLES`, `HIDE_SECRETS`) and renderers. `reveal` and `moderator` count as a game in progress, so the language switch is locked there.
 - **The setup form.** One name field per player (default «بازیکن N» / "Player N", at most 24 letters, default names follow a language change), the doctor's self-save select (never, once, always; default once), the godfather switch (off by default, disabled with a hint below the player count the engine allows, turns itself off if the count drops), the "announce the role of the eliminated" switch (default on), a short help (i) for each option, "Deal roles" and back. Names and options are not remembered between games. The game is made by `createGame` with a `crypto`-based random; every engine error code is shown as a sentence (catalog key) on the field that caused it, and never as a code.
 - **The reveal.** One player at a time: a hand-off gate ("Hand the phone to {name}", "I am {name}"), then the role card (the role, a line on what it does, the other members of the team for the mafia and the godfather, and for the godfather the line that the detective sees him as innocent), then "Hide and pass on". The card is built only after "I am" and **removed from the page** (not hidden) when it is hidden, when the page goes out of sight, and whenever any other screen is drawn. Progress is saved at every hand-off; a reload returns to the next player's gate, never to a card. Focus moves to each step's heading and one polite live line announces the step (never the role).
 - **The moderator's screen (temporary).** The players with roles hidden until "Show roles" (hidden again on every open and when the page goes out of sight), the rules in force one line each, and "New game" after a question.
@@ -33,7 +69,7 @@ Step 3A of 4: the setup form, the hand-off of the roles, the moderator's list, a
 
 #### Known
 
-- A quick double tap on "Hide and pass on" can press the next gate's "I am" button, which sits in the same place, and show the next card to the person still holding the phone. Left alone on purpose; see `docs/architecture.md`.
+- A quick double tap on "Hide and pass on" can press the next gate's "I am" button, which sits in the same place, and show the next card to the person still holding the phone. Left alone on purpose; see `docs/architecture.md`. **Fixed in step 3B** (the hand-off guard).
 - The `_source` line the Persian baseline script writes still says "step 1".
 
 ### Step 2 of 4: the pure rules engine

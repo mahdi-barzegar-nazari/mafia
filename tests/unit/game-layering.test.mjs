@@ -182,7 +182,7 @@ describe('the engine is used through its public API only', () => {
 
     it('the screens really use it (so the rule above is not satisfied by nobody importing anything)', () => {
         const users = importersOfGame(real).map((edge) => edge.split(' -> ')[0]);
-        for (const expected of ['js/ui/setupModel.js', 'js/ui/revealFlow.js', 'js/ui/savedGame.js', 'js/ui/moderator.js']) {
+        for (const expected of ['js/ui/setupModel.js', 'js/ui/revealFlow.js', 'js/ui/savedGame.js', 'js/ui/gameScreens.js', 'js/ui/nightModel.js', 'js/ui/voteModel.js', 'js/app/actions.js']) {
             assert.ok(users.includes(expected), `${expected} should use the engine`);
         }
     });

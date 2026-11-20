@@ -226,7 +226,7 @@ describe('what a switch leaves alone', () => {
     });
 
     it('everything, when the switch is refused (a match is running, or the code is not a language)', () => {
-        for (const phase of ['reveal', 'moderator']) {
+        for (const phase of ['reveal', 'night', 'morning', 'day', 'dusk', 'ended']) {
             gameState.phase = phase;
             const before = snapshot();
             switchTo('en');

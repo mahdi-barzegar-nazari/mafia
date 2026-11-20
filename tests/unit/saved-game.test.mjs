@@ -1,12 +1,13 @@
 /**
  * ui/savedGame.js and ui/resume.js: the saved game, checked. Nothing in storage is trusted: the game must replay
  * through the engine, the phase must be one a game can be resumed in, the reveal index must be a real player, and
- * anything else is "no save". The save-and-restore round trip is through the real `persist`.
+ * anything else is "no save". The save-and-restore round trip is through the real `persist`. A game past the reveal
+ * comes back in the engine's own phase, whatever label was saved.
  */
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
 import { SAVE_VERSION, gameState } from '../../js/core/state.js';
-import { eight, eightGodfather, newGame } from './helpers/gameKit.mjs';
+import { CONTINUE, eight, eightGodfather, kill, newGame, play, save, check, votes } from './helpers/gameKit.mjs';
 import { installFakeEnv } from './helpers/fakeEnv.mjs';
 import { useGameHarness } from './helpers/harness.mjs';
 
@@ -38,13 +39,40 @@ describe('loadSavedGame: a good save', () => {
         assert.equal(saved.hasSavedGame(), true);
     });
 
-    it('a game saved on the moderator screen comes back there, with no reveal index to speak of', () => {
-        const game = eightGodfather();
-        store(game, { phase: 'moderator', index: 6 });
-        const loaded = saved.loadSavedGame();
-        assert.equal(loaded.phase, 'moderator');
-        assert.deepEqual(loaded.game, game);
-        assert.equal(loaded.revealIndex, 0);
+    it('every phase of the engine comes back as itself, with no reveal index to speak of', () => {
+        const night = eight();
+        const morning = play(night, kill('p5'), save('p5'), check('p1'));
+        const day = play(morning, CONTINUE);
+        const dusk = play(day, votes({ p1: 3 }));
+        const night2 = play(dusk, CONTINUE);
+        const townWinsAtDusk = play(night2, kill('p5'), save('p5'), check('p2'), CONTINUE, votes({ p2: 3 }));
+        const ended = play(townWinsAtDusk, CONTINUE);
+        const cases = [
+            ['night', night],
+            ['night', play(night, kill('p5'))],
+            ['night', play(night, kill('p5'), save('p5'))],
+            ['morning', morning],
+            ['day', day],
+            ['dusk', dusk],
+            ['night', night2],
+            ['dusk', townWinsAtDusk],
+            ['ended', ended]
+        ];
+        for (const [phase, game] of cases) {
+            store(game, { phase, index: 6 });
+            const loaded = saved.loadSavedGame();
+            assert.equal(loaded.phase, phase, phase);
+            assert.deepEqual(loaded.game, game);
+            assert.equal(loaded.revealIndex, 0);
+        }
+    });
+
+    it('the label that was saved does not decide the screen: a stale one is replaced by the engine\'s own phase', () => {
+        const day = play(eightGodfather(), kill('p5'), save('p6'), check('p1'), CONTINUE);
+        for (const label of ['night', 'morning', 'dusk', 'ended']) {
+            store(day, { phase: label });
+            assert.equal(saved.loadSavedGame().phase, 'day', label);
+        }
     });
 
     it('is exactly what persist() wrote: the real round trip, whatever the size of the game', () => {
@@ -57,19 +85,24 @@ describe('loadSavedGame: a good save', () => {
         }
     });
 
-    it('the phases a game can come back to are the reveal and the moderator screens', () => {
-        assert.deepEqual([...saved.RESUMABLE_PHASES], ['reveal', 'moderator']);
+    it('the phases a game can come back to are the reveal and the five phases of the engine', () => {
+        assert.deepEqual([...saved.RESUMABLE_PHASES], ['reveal', 'night', 'morning', 'day', 'dusk', 'ended']);
     });
 });
 
 describe('loadSavedGame: a save that is not usable is no save', () => {
     it('a phase that holds no game, or no phase at all', () => {
-        for (const phase of ['welcome', 'setup', 'night', '', null, 7, ['reveal'], 'constructor']) {
+        for (const phase of ['welcome', 'setup', 'moderator', 'vote', '', null, 7, ['reveal'], 'constructor']) {
             store(eight(), { phase });
             assert.equal(saved.loadSavedGame(), null, String(phase));
         }
         store(eight(), { change: (state) => delete state.phase });
         assert.equal(saved.loadSavedGame(), null, 'no phase at all');
+    });
+
+    it('a game saved as \'reveal\' that already has actions cannot be (the reveal comes before the first action)', () => {
+        store(play(eight(), kill('p5')), { phase: 'reveal' });
+        assert.equal(saved.loadSavedGame(), null);
     });
 
     it('no game, or something that is not a game', () => {

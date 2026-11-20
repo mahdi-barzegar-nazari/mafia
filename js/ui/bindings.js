@@ -13,7 +13,7 @@ export function bindEvents() {
         if (document.visibilityState === 'visible') {
             await requestWakeLock();
         } else {
-            // Out of sight: whatever a role card or the moderator's list shows goes away before the phone is seen again.
+            // Out of sight: whatever a role card, the players panel or the moderator notes show goes away before the phone is seen again.
             dispatch({type: 'HIDE_SECRETS'});
         }
     });
@@ -45,7 +45,17 @@ export function bindEvents() {
     document.getElementById('btn-reveal-hide').onclick = () => dispatch({type: 'REVEAL_HIDE'});
     document.getElementById('btn-reveal-back').onclick = () => dispatch({type: 'CONFIRM_LEAVE_REVEAL'});
 
+    // The game screens (night to ended): each button only dispatches; the rules and the guards are in app/actions.js.
+    document.getElementById('btn-night-confirm').onclick = () => dispatch({type: 'NIGHT_CONFIRM'});
+    document.getElementById('btn-morning-notes').onclick = () => dispatch({type: 'TOGGLE_NOTES'});
+    document.getElementById('btn-morning-continue').onclick = () => dispatch({type: 'CONTINUE_GAME'});
+    document.getElementById('btn-vote-close').onclick = () => dispatch({type: 'VOTE_CLOSE'});
+    document.getElementById('btn-dusk-continue').onclick = () => dispatch({type: 'CONTINUE_GAME'});
+    document.getElementById('btn-ended-new-game').onclick = () => dispatch({type: 'NEW_GAME_NOW'});
+
+    // The shared chrome below every game screen.
     document.getElementById('btn-roles-toggle').onclick = () => dispatch({type: 'TOGGLE_ROLES'});
+    document.getElementById('btn-undo').onclick = () => dispatch({type: 'UNDO_GAME'});
     document.getElementById('btn-new-game').onclick = () => dispatch({type: 'CONFIRM_NEW_GAME'});
 
     document.getElementById('btn-confirm-yes').onclick = () => {

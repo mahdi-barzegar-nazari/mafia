@@ -135,16 +135,66 @@
         </div>
     </section>
 
-    <section id="screen-moderator" class="screen-view hidden">
-        <h2 data-i18n="moderator.title">فهرست راوی</h2>
-        <p data-i18n="moderator.hint">این فهرست فقط برای راوی است. نقش‌ها تا وقتی نخواهید پنهان می‌مانند.</p>
-        <ul id="moderator-list" class="moderator-list"></ul>
-        <button type="button" id="btn-roles-toggle" class="btn btn-ghost" data-i18n="moderator.roles.show">نمایش نقش‌ها</button>
-        <h3 class="moderator-rules-title" data-i18n="moderator.rules.title">قوانین این بازی</h3>
-        <ul id="moderator-rules" class="moderator-rules"></ul>
-        <p data-i18n="moderator.next">صفحه‌های شب و روز در نسخه‌ی بعدی می‌آیند.</p>
-        <button type="button" id="btn-new-game" class="btn btn-rose" data-i18n="moderator.newGame">بازی جدید</button>
+    <p id="game-live" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+
+    <section id="screen-night" class="screen-view hidden">
+        <h2 id="title-night" class="game-title"></h2>
+        <ol id="night-steps" class="night-steps"></ol>
+        <div id="night-current" class="night-current hidden">
+            <p id="night-instruction" class="night-instruction"></p>
+            <p id="night-doctor-note" class="field-hint hidden"></p>
+            <p class="field-hint" data-i18n="night.do.hint">یک نام را انتخاب کنید و تأیید بزنید. تا تأیید نکنید چیزی ثبت نمی‌شود.</p>
+            <ul id="night-targets" class="target-list" aria-label="انتخاب هدف" data-i18n-attr="aria-label:night.targets.aria"></ul>
+            <button type="button" id="btn-night-confirm" class="btn btn-primary night-confirm" disabled></button>
+        </div>
     </section>
+
+    <section id="screen-morning" class="screen-view hidden">
+        <h2 id="title-morning" class="game-title"></h2>
+        <p id="morning-announcement" class="announcement"></p>
+        <button type="button" id="btn-morning-continue" class="btn btn-primary" data-i18n="game.continue">ادامه</button>
+        <button type="button" id="btn-morning-notes" class="btn btn-ghost" aria-expanded="false" aria-controls="morning-notes" data-i18n="morning.notes.show">نمایش یادداشت‌های راوی</button>
+        <div id="morning-notes" class="notes-box hidden" role="region" aria-labelledby="btn-morning-notes">
+            <ul id="morning-notes-list" class="notes-list"></ul>
+        </div>
+    </section>
+
+    <section id="screen-day" class="screen-view hidden">
+        <h2 id="title-day" class="game-title"></h2>
+        <p data-i18n="day.hint">بگذارید میز صحبت کند، بعد دست‌های بالا رفته را بشمارید و رأی هر نفر را وارد کنید.</p>
+        <p id="day-counter" class="vote-counter" role="status" aria-live="polite"></p>
+        <ul id="vote-list" class="vote-list" aria-label="رأی هر بازیکن" data-i18n-attr="aria-label:day.list.aria"></ul>
+        <p class="field-hint" data-i18n="day.zeroHint">اگر هیچ رأیی ثبت نشود، کسی حذف نمی‌شود.</p>
+        <button type="button" id="btn-vote-close" class="btn btn-primary" data-i18n="day.close">بستن رأی‌گیری</button>
+    </section>
+
+    <section id="screen-dusk" class="screen-view hidden">
+        <h2 id="title-dusk" class="game-title"></h2>
+        <p id="dusk-result" class="announcement"></p>
+        <button type="button" id="btn-dusk-continue" class="btn btn-primary" data-i18n="game.continue">ادامه</button>
+    </section>
+
+    <section id="screen-ended" class="screen-view hidden">
+        <h2 id="title-ended" class="game-title"></h2>
+        <p id="ended-winner" class="announcement winner-banner"></p>
+        <button type="button" id="btn-ended-new-game" class="btn btn-primary" data-i18n="game.newGame">بازی جدید</button>
+    </section>
+
+    <div id="game-chrome" class="game-chrome hidden">
+        <section class="players-panel" aria-labelledby="players-title">
+            <h3 id="players-title" data-i18n="game.players.title">بازیکنان</h3>
+            <ul id="players-list" class="players-list"></ul>
+            <button type="button" id="btn-roles-toggle" class="btn btn-ghost" aria-pressed="false" data-i18n="game.roles.show">نمایش نقش‌ها</button>
+            <details id="rules-details" class="rules-details">
+                <summary data-i18n="game.rules.title">قوانین این بازی</summary>
+                <ul id="rules-list" class="rules-list"></ul>
+            </details>
+        </section>
+        <div class="game-actions">
+            <button type="button" id="btn-undo" class="btn btn-ghost btn-quiet" data-i18n="game.undo" disabled>واگرد</button>
+            <button type="button" id="btn-new-game" class="btn btn-ghost btn-quiet" data-i18n="game.newGame">بازی جدید</button>
+        </div>
+    </div>
 </main>
 
 <div id="confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">

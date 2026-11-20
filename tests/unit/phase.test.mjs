@@ -70,9 +70,9 @@ describe('persist (the save behind commitState)', () => {
 });
 
 describe('setPhase', () => {
-    it('accepts every phase of the app, the two screens of a game included', () => {
+    it('accepts every phase of the app, the screens of a game included', () => {
         setRenderer(() => log.push('render'));
-        for (const phase of ['welcome', 'setup', 'reveal', 'moderator']) {
+        for (const phase of ['welcome', 'setup', 'reveal', 'night', 'morning', 'day', 'dusk', 'ended']) {
             setPhase(phase);
             assert.equal(gameState.phase, phase);
         }

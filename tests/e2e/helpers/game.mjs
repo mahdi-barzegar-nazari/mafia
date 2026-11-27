@@ -5,7 +5,8 @@
  * control is a finger-sized target).
  *
  * The page runs on Playwright's fake clock (it flows by itself, and a test can jump it): the app ignores presses
- * for 800 ms after a role card was hidden, and a test jumps over that time (`handOff`) instead of waiting for it.
+ * for 800 ms after a role card was hidden, and "Hide and pass on" for 800 ms after a role card was shown; a test
+ * jumps over that time (`handOff`, `lookAtCard`) instead of waiting for it.
  *
  * The texts a test expects are read from the catalogs (js/i18n) and not typed again here, so a reworded text does
  * not break a test, while a text that is missing, stale or in the wrong language still does.
@@ -65,6 +66,9 @@ export async function withGame(browser, baseUrl, fn, { lang = 'fa', theme, touch
 
 /** Let the hand-off guard run out: the person who hid a card has passed the phone on and a new person presses. */
 export const handOff = (page) => page.clock.fastForward(GUARD_MS);
+
+/** Let the guard on "Hide and pass on" run out: the player has looked at their card (a press in its first 800 ms is the second tap of a double tap on "I am"). */
+export const lookAtCard = (page) => page.clock.fastForward(GUARD_MS);
 
 /** The ids of the screens that are showing. */
 export const shown = (page) => page.evaluate(() => [...document.querySelectorAll('.screen-view')].filter((el) => !el.classList.contains('hidden')).map((el) => el.id));
@@ -168,6 +172,7 @@ export async function passOnePlayer(page, { lang, index, count, players }) {
     const last = index === count - 1;
     assert.equal(await page.textContent('#btn-reveal-hide'), say(lang, last ? 'reveal.card.hideLast' : 'reveal.card.hide'), where);
 
+    await lookAtCard(page);
     await page.click('#btn-reveal-hide');
     if (last) await page.waitForSelector('#screen-night:not(.hidden)');
     else await page.waitForSelector('#reveal-gate:not(.hidden)');
@@ -294,6 +299,7 @@ export async function passReveal(page, count) {
         await page.waitForSelector('#reveal-gate:not(.hidden)');
         await page.click('#btn-reveal-show');
         await page.waitForSelector('#reveal-card:not(.hidden)');
+        await lookAtCard(page);
         await page.click('#btn-reveal-hide');
         await handOff(page);
     }

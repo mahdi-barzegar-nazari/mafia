@@ -39,8 +39,8 @@ describe('the state at start-up', () => {
         assert.ok(Number.isInteger(SAVE_VERSION) && SAVE_VERSION >= 2);
     });
 
-    it('the session holds only what must not outlive the page: the confirm callback, the secret toggles, the pending picks and the hand-off clock, all off or empty', () => {
-        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false, notesShown: false, nightTarget: null, voteCounts: {}, cardHiddenAt: null });
+    it('the session holds only what must not outlive the page: the confirm callback, the secret toggles, the pending picks and the hand-off clocks, all off or empty', () => {
+        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false, notesShown: false, nightTarget: null, voteCounts: {}, cardHiddenAt: null, cardShownAt: null });
     });
 
     it('resetSingletons puts a changed state back, and gives fresh copies (no test can leak into the next)', () => {
@@ -55,12 +55,13 @@ describe('the state at start-up', () => {
         session.nightTarget = 'p2';
         session.voteCounts = { p1: 1 };
         session.cardHiddenAt = 123;
+        session.cardShownAt = 456;
         resetSingletons();
         assert.equal(gameState.phase, 'welcome');
         assert.equal(gameState.settings.playersCount, DEFAULT_PLAYERS_COUNT);
         assert.equal(gameState.game, null);
         assert.deepEqual(gameState.reveal, { index: 0 });
-        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false, notesShown: false, nightTarget: null, voteCounts: {}, cardHiddenAt: null });
+        assert.deepEqual(session, { pendingConfirmAction: null, revealCardOpen: false, rolesShown: false, notesShown: false, nightTarget: null, voteCounts: {}, cardHiddenAt: null, cardShownAt: null });
     });
 });
 

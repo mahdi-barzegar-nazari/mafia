@@ -782,12 +782,14 @@ describe('the hand-off guard', () => {
         wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_SHOW' });
         assert.equal(session.revealCardOpen, true);
+        wait(HAND_OFF_GUARD_MS); // the person looks at their card before hiding it
     }
 
     it('a press of "I am {name}" 799 ms after a card was hidden is ignored, and at 800 ms it is accepted', () => {
         show(eight(), { phase: 'reveal', index: 0 });
         wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_SHOW' });
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_HIDE' });
         assert.equal(gameState.reveal.index, 1);
         wait(HAND_OFF_GUARD_MS - 1);
@@ -804,6 +806,7 @@ describe('the hand-off guard', () => {
         show(eight(), { phase: 'reveal', index: 0 });
         wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_SHOW' });
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_HIDE' });
         dispatch({ type: 'REVEAL_SHOW' }); // the second tap, a few ms later, lands on the next gate's button
         dispatch({ type: 'REVEAL_HIDE' }); // and the one after
@@ -816,9 +819,11 @@ describe('the hand-off guard', () => {
         show(eight(), { phase: 'reveal', index: 0 });
         wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_SHOW' });
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_HIDE' });
         wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_SHOW' });
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_HIDE' });
         wait(HAND_OFF_GUARD_MS - 1);
         dispatch({ type: 'REVEAL_SHOW' });
@@ -876,6 +881,7 @@ describe('the hand-off guard', () => {
         show(eight(), { phase: 'reveal', index: 0 });
         wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_SHOW' });
+        wait(HAND_OFF_GUARD_MS);
         dispatch({ type: 'REVEAL_HIDE' });
         wait(-5000);
         dispatch({ type: 'REVEAL_SHOW' });
@@ -888,6 +894,189 @@ describe('the hand-off guard', () => {
         dispatch({ type: 'REVEAL_HIDE' });
         assert.equal(gameState.reveal.index, 2);
     });
+});
+
+describe('the hand-off guard, the other way: "Hide and pass on" right after "I am {name}"', () => {
+    /** The page's own writes to localStorage while `fn` runs. */
+    function writesDuring(fn) {
+        const original = localStorage.setItem;
+        let writes = 0;
+        localStorage.setItem = (key, value) => {
+            writes += 1;
+            return original(key, value);
+        };
+        try {
+            fn();
+        } finally {
+            localStorage.setItem = original;
+        }
+        return writes;
+    }
+    /** Put the card of player `index + 1` on screen, 0 ms ago. */
+    function cardJustShown(index = 0) {
+        show(eight(), { phase: 'reveal', index });
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'REVEAL_SHOW' });
+        assert.equal(session.revealCardOpen, true);
+    }
+
+    it('a press of "Hide and pass on" 799 ms after the card was shown is ignored, and at 800 ms it is accepted', () => {
+        cardJustShown(0);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(session.revealCardOpen, true, '0 ms: ignored');
+        wait(HAND_OFF_GUARD_MS - 1);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(session.revealCardOpen, true, '799 ms: ignored');
+        assert.equal(gameState.reveal.index, 0);
+        wait(1);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(session.revealCardOpen, false, '800 ms: accepted');
+        assert.equal(gameState.reveal.index, 1);
+        assert.equal(byId('reveal-card-body').children.length, 0, 'the card is out of the page');
+    });
+
+    it('a whole double tap on "I am {name}" leaves the card on screen: the second tap lands on "Hide and pass on" and does nothing', () => {
+        cardJustShown(3);
+        dispatch({ type: 'REVEAL_HIDE' }); // the second tap, a few ms later, lands on the card's button
+        assert.equal(session.revealCardOpen, true);
+        assert.ok(byId('reveal-card-body').children.length > 0, 'the role is still in the page');
+        assert.equal(byId('reveal-card').classList.contains('hidden'), false);
+        assert.equal(byId('reveal-gate').classList.contains('hidden'), true);
+        assert.equal(gameState.reveal.index, 3, 'nobody was skipped');
+    });
+
+    it('an ignored hide changes nothing: the index, the saved game and the card are as they were, and nothing is written', () => {
+        cardJustShown(2);
+        const savedText = env.storage.get(SAVE_KEY);
+        const savedBefore = savedGame();
+        const parts = [...byId('reveal-card-body').children];
+        assert.ok(parts.length > 0);
+        const writes = writesDuring(() => {
+            dispatch({ type: 'REVEAL_HIDE' });
+            wait(HAND_OFF_GUARD_MS - 1);
+            dispatch({ type: 'REVEAL_HIDE' });
+        });
+        assert.equal(writes, 0, 'nothing was saved');
+        assert.equal(env.storage.get(SAVE_KEY), savedText, 'the saved record is the same text');
+        assert.deepEqual(savedGame(), savedBefore);
+        assert.deepEqual(gameState.reveal, { index: 2 });
+        assert.equal(JSON.parse(savedText).state.reveal.index, 2);
+        const partsAfter = [...byId('reveal-card-body').children];
+        assert.equal(partsAfter.length, parts.length);
+        partsAfter.forEach((part, i) => assert.equal(part, parts[i], 'the card was not drawn again'));
+    });
+
+    it('the last card too: an ignored hide does not start the night', () => {
+        cardJustShown(7);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.phase, 'reveal');
+        assert.deepEqual(visibleScreens(), ['reveal']);
+        assert.equal(session.revealCardOpen, true);
+        assert.equal(gameState.reveal.index, 7);
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.phase, 'night', '800 ms: accepted, and the night starts');
+    });
+
+    it('the card shown again for the next player starts a new window', () => {
+        cardJustShown(0);
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.reveal.index, 1);
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'REVEAL_SHOW' }); // the second player's card
+        assert.equal(session.revealCardOpen, true);
+        wait(HAND_OFF_GUARD_MS - 1);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(session.revealCardOpen, true, '799 ms after the second card was shown: ignored');
+        assert.equal(gameState.reveal.index, 1);
+        wait(1);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.reveal.index, 2, '800 ms: accepted');
+    });
+
+    it('the same card shown again after the page went out of sight starts a new window too', () => {
+        cardJustShown(0);
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'HIDE_SECRETS' });
+        assert.equal(session.revealCardOpen, false);
+        dispatch({ type: 'REVEAL_SHOW' });
+        assert.equal(session.revealCardOpen, true);
+        wait(HAND_OFF_GUARD_MS - 1);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.reveal.index, 0, '799 ms after it was shown again: ignored');
+        wait(1);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.reveal.index, 1);
+    });
+
+    it('a clock that went backwards never blocks a hide', () => {
+        cardJustShown(0);
+        wait(-5000);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(session.revealCardOpen, false);
+        assert.equal(gameState.reveal.index, 1);
+    });
+
+    it('a hide with no card showing is still ignored, whatever the clock says', () => {
+        show(eight(), { phase: 'reveal', index: 2 });
+        for (const ms of [0, HAND_OFF_GUARD_MS - 1, 1, 5000]) {
+            wait(ms);
+            dispatch({ type: 'REVEAL_HIDE' });
+            assert.equal(gameState.reveal.index, 2, `${ms} ms after nothing`);
+        }
+        // a card that was shown and closed again by the page going out of sight is no card either
+        dispatch({ type: 'REVEAL_SHOW' });
+        dispatch({ type: 'HIDE_SECRETS' });
+        dispatch({ type: 'REVEAL_HIDE' });
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.reveal.index, 2);
+        assert.equal(session.revealCardOpen, false);
+    });
+
+    it('a reload clears the stamp, and so does leaving the reveal, one way or the other', () => {
+        cardJustShown(0);
+        assert.equal(typeof session.cardShownAt, 'number');
+        reload();
+        assert.equal(session.cardShownAt, null, 'a new page has no card');
+        dispatch({ type: 'RESUME_GAME' });
+        assert.equal(session.cardShownAt, null);
+
+        cardJustShown(7);
+        assert.equal(typeof session.cardShownAt, 'number');
+        wait(HAND_OFF_GUARD_MS);
+        dispatch({ type: 'REVEAL_HIDE' });
+        assert.equal(gameState.phase, 'night');
+        assert.equal(session.cardShownAt, null, 'the last card hidden: the first night has no card');
+
+        cardJustShown(1);
+        dispatch({ type: 'CONFIRM_LEAVE_REVEAL' });
+        const callback = session.pendingConfirmAction;
+        session.pendingConfirmAction = null;
+        callback();
+        assert.equal(gameState.phase, 'setup');
+        assert.equal(session.cardShownAt, null, 'the game was thrown away');
+    });
+
+    for (const lang of ['fa', 'en']) {
+        it(`${lang}: a whole reveal of 8 players with normal pacing (look at the card, hide it, hand the phone on) reaches the first night`, () => {
+            setLang(lang);
+            show(eight(), { phase: 'reveal', index: 0 });
+            const roles = ['mafia', 'mafia', 'doctor', 'detective', 'citizen', 'citizen', 'citizen', 'citizen'];
+            for (let i = 0; i < 8; i++) {
+                assert.equal(gameState.reveal.index, i);
+                wait(HAND_OFF_GUARD_MS); // the phone is handed on
+                dispatch({ type: 'REVEAL_SHOW' });
+                assert.ok(textOf(byId('reveal-card-body')).includes(roleName(roles[i])), `${lang}, player ${i + 1}: the card shows ${roles[i]}`);
+                wait(HAND_OFF_GUARD_MS); // the player reads their card
+                dispatch({ type: 'REVEAL_HIDE' });
+                assert.equal(byId('reveal-card-body').children.length, 0);
+            }
+            assert.equal(gameState.phase, 'night');
+            assert.equal(actionCount(), 0);
+        });
+    }
 });
 
 describe('a screen that is not showing holds nothing of its last drawing', () => {

@@ -25,6 +25,7 @@ import {
     fillNames,
     goSetup,
     handOff,
+    lookAtCard,
     makeNames,
     nameValues,
     pageGoesAway,
@@ -132,6 +133,7 @@ for (const lang of LANGS) {
                                 await assertFitsPhone(page, `card ${i + 1}`);
                                 await assertTouchTargets(page, `card ${i + 1}`);
                             }
+                            await lookAtCard(page);
                             await page.click('#btn-reveal-hide');
                             if (i < count - 1) await page.waitForSelector('#reveal-gate:not(.hidden)');
                             await handOff(page);
@@ -215,6 +217,7 @@ describe('a role is on the phone only while its player is looking', () => {
             await game(async (page) => {
                 const players = await dealGame(page, 'fa', 8);
                 await page.click('#btn-reveal-show');
+                await lookAtCard(page);
                 await page.click('#btn-reveal-hide');
                 await handOff(page);
                 await page.click('#btn-reveal-show');
@@ -758,6 +761,7 @@ describe('the language during a game', () => {
                 const players = await dealGame(page, 'en', 8);
                 await page.click('#btn-reveal-show');
                 assert.deepEqual(persianIn(await recordScreen(page)), [], 'a card');
+                await lookAtCard(page);
                 await page.click('#btn-reveal-hide');
                 await handOff(page);
                 assert.deepEqual(persianIn(await recordScreen(page)), [], 'a gate');
@@ -783,6 +787,7 @@ describe('the screens on a finger (touch phone)', () => {
                 for (let i = 0; i < count; i++) {
                     await tapWhenStill(page, '#btn-reveal-show');
                     await page.waitForSelector('#reveal-card:not(.hidden)');
+                    await lookAtCard(page);
                     await tapWhenStill(page, '#btn-reveal-hide');
                     await page.waitForSelector(i < count - 1 ? '#reveal-gate:not(.hidden)' : '#screen-night:not(.hidden)');
                     await handOff(page);

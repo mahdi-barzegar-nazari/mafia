@@ -7,6 +7,8 @@
  *    away and after the phase changes (their texts are not in the DOM, not only invisible);
  *  - the night screen shows nothing about what was chosen;
  *  - a double tap on "Hide and pass on" shows no second card (a real double click), and the 800 ms boundary;
+ *  - the reverse: a double tap on "I am {name}" leaves the card on screen (a real double click, both languages), a
+ *    later single click on "Hide and pass on" works, and the 800 ms boundary of that side;
  *  - a night and a vote with the keyboard only; the live line and the focus after every step;
  *  - the language switch is locked during the game and free after "new game".
  * Requires: npm install && npx playwright install chromium
@@ -14,7 +16,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { startApp } from './helpers/app.mjs';
-import { GUARD_MS, assertFitsPhone, assertNoRoleInPage, assertNotInPage, castVotes, chooseTarget, dealGame, digits, fromDusk, handOff, idsWithRole, pageGoesAway, passReveal, pick, playNight, roleName, savedRecord, savedState, say, screenNow, startGame, stepStatuses, textIn, toDay, withGame } from './helpers/game.mjs';
+import { GUARD_MS, assertFitsPhone, assertNoRoleInPage, assertNotInPage, castVotes, chooseTarget, dealGame, digits, fromDusk, handOff, idsWithRole, lookAtCard, pageGoesAway, passReveal, pick, playNight, readCard, roleName, savedRecord, savedState, say, screenNow, startGame, stepStatuses, textIn, toDay, withGame } from './helpers/game.mjs';
 
 let app;
 let browser;
@@ -358,6 +360,7 @@ describe('a double tap on "Hide and pass on"', () => {
                 const gate = await rect('#btn-reveal-show');
                 await page.click('#btn-reveal-show');
                 const hide = await rect('#btn-reveal-hide');
+                await lookAtCard(page); // the player looks at the card first: a hide in its first 800 ms is the other kind of double tap
                 // From the second gate on every gate has the same layout (names of the same length), so this gate's button
                 // is where the next one will be: a point on both is where the second tap of a double tap lands.
                 const top = Math.max(gate.top, hide.top);
@@ -386,10 +389,12 @@ describe('a double tap on "Hide and pass on"', () => {
             await dealGame(page, 'en', 6, { godfather: false });
             for (let k = 0; k < 5; k++) {
                 await page.click('#btn-reveal-show');
+                await lookAtCard(page);
                 await page.click('#btn-reveal-hide');
                 await handOff(page);
             }
             await page.click('#btn-reveal-show');
+            await lookAtCard(page);
             const hide = await page.evaluate(() => { const r = document.querySelector('#btn-reveal-hide').getBoundingClientRect(); return { x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 }; });
             await page.mouse.dblclick(hide.x, hide.y);
             await page.waitForSelector('#screen-night:not(.hidden)');
@@ -410,6 +415,7 @@ describe('a double tap on "Hide and pass on"', () => {
         await game(async (page) => {
             await dealGame(page, 'en', 6, { godfather: false });
             await page.click('#btn-reveal-show');
+            await lookAtCard(page);
             await page.clock.pauseAt(Date.now() + 60_000); // the clock stands still from here: it moves only when told
             await page.click('#btn-reveal-hide', { noWaitAfter: true, force: true, timeout: 5000 });
             const press = () => page.evaluate(() => document.getElementById('btn-reveal-show').click());
@@ -422,6 +428,82 @@ describe('a double tap on "Hide and pass on"', () => {
             await page.clock.runFor(1);
             await press();
             assert.equal(await cardShown(), true, '800 ms: accepted');
+        }, { lang: 'en' });
+    });
+});
+
+describe('the reverse double tap: "I am {name}" and, a few ms later, "Hide and pass on"', () => {
+    for (const lang of ['fa', 'en']) {
+        it(`${lang}: a real double click on "I am {name}" leaves the card on screen and the reveal index unchanged; a later single click on "Hide and pass on" works`, async () => {
+            await game(async (page) => {
+                const players = await dealGame(page, lang, 8);
+                const rect = (selector) => page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; }, selector);
+                const cardOnScreen = async () => !(await page.isHidden('#reveal-card'));
+                let doubled = 0;
+                for (let k = 0; k < 8; k++) {
+                    // Where this player's card has its "Hide and pass on": show the card once, measure it, and put it away again
+                    // (the page going out of sight gives the same player's gate back, and the same card again at the next "I am").
+                    const gate = await rect('#btn-reveal-show');
+                    await page.click('#btn-reveal-show');
+                    await page.waitForSelector('#reveal-card:not(.hidden)');
+                    const hide = await rect('#btn-reveal-hide');
+                    await pageGoesAway(page, 'pagehide');
+                    await page.waitForSelector('#reveal-gate:not(.hidden)');
+                    // A point on both buttons is where the second tap of a double tap on "I am" lands.
+                    const top = Math.max(gate.top, hide.top);
+                    const bottom = Math.min(gate.bottom, hide.bottom);
+                    const left = Math.max(gate.left, hide.left);
+                    const right = Math.min(gate.right, hide.right);
+                    if (bottom - top > 10 && right - left > 10) {
+                        await page.mouse.dblclick((left + right) / 2, (top + bottom) / 2);
+                        await page.waitForSelector('#reveal-card:not(.hidden)');
+                        assert.equal(await cardOnScreen(), true, `${lang}, player ${k + 1}: the card is still on screen after the double click`);
+                        assert.equal(await page.isHidden('#reveal-gate'), true, `player ${k + 1}: no gate`);
+                        assert.equal((await readCard(page)).role, roleName(lang, players[k].role), `player ${k + 1}: it is their card`);
+                        assert.equal((await savedState(page)).reveal.index, k, `player ${k + 1}: nobody was passed on`);
+                        doubled++;
+                        // A later single click works: the page clock runs past the guard window.
+                        await page.clock.runFor(GUARD_MS);
+                    } else {
+                        await page.click('#btn-reveal-show');
+                        await lookAtCard(page);
+                    }
+                    await page.click('#btn-reveal-hide');
+                    if (k < 7) {
+                        await page.waitForSelector('#reveal-gate:not(.hidden)');
+                        assert.equal((await savedState(page)).reveal.index, k + 1, `player ${k + 1}: exactly one player was passed on`);
+                    } else {
+                        await page.waitForSelector('#screen-night:not(.hidden)');
+                    }
+                    await assertNoRoleInPage(page, `${lang}, after card ${k + 1}`);
+                    await handOff(page);
+                }
+                assert.ok(doubled >= 4, `${lang}: the double click was tried on ${doubled} cards whose button overlaps the gate's (the test must try it)`);
+                assert.equal(await screenNow(page), 'night');
+            }, { lang });
+        });
+    }
+
+    it('the boundary in the browser: 799 ms after a card was shown a press of "Hide and pass on" is ignored, at 800 ms it is accepted', async () => {
+        await game(async (page) => {
+            await dealGame(page, 'en', 6, { godfather: false });
+            await page.clock.pauseAt(Date.now() + 60_000); // the clock stands still from here: it moves only when told
+            const press = (id) => page.evaluate((i) => document.getElementById(i).click(), id);
+            const cardShown = () => page.evaluate(() => !document.getElementById('reveal-card').classList.contains('hidden'));
+            await press('btn-reveal-show');
+            assert.equal(await cardShown(), true);
+            const before = await savedRecord(page);
+            await press('btn-reveal-hide');
+            assert.equal(await cardShown(), true, '0 ms: ignored');
+            await page.clock.runFor(GUARD_MS - 1);
+            await press('btn-reveal-hide');
+            assert.equal(await cardShown(), true, '799 ms: ignored');
+            assert.equal(await page.locator('#reveal-card-body > *').count() > 0, true, 'the role is still in the page');
+            assert.deepEqual(await savedRecord(page), before, 'nothing was saved by the ignored presses');
+            await page.clock.runFor(1);
+            await press('btn-reveal-hide');
+            assert.equal(await cardShown(), false, '800 ms: accepted');
+            assert.equal((await savedState(page)).reveal.index, 1);
         }, { lang: 'en' });
     });
 });

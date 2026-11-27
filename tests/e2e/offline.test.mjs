@@ -124,7 +124,7 @@ describe('a first load with no network', () => {
         const context = await installedContext();
         try {
             await context.setOffline(true);
-            await context.clock.install(); // the hand-off guard (800 ms) is jumped over, not waited for
+            await context.clock.install(); // the hand-off guard (800 ms, both ways) is jumped over, not waited for
             const { page, problems } = await newPage(context);
             const answered = [];
             page.on('response', (response) => answered.push({ url: response.url(), fromWorker: response.fromServiceWorker() }));
@@ -139,6 +139,7 @@ describe('a first load with no network', () => {
             for (let i = 0; i < 4; i++) {
                 await page.click('#btn-reveal-show');
                 await page.waitForSelector('#reveal-card:not(.hidden)');
+                await page.clock.fastForward(800); // the player looks at their card
                 await page.click('#btn-reveal-hide');
                 await page.waitForSelector(i < 3 ? '#reveal-gate:not(.hidden)' : '#screen-night:not(.hidden)');
                 await page.clock.fastForward(800);

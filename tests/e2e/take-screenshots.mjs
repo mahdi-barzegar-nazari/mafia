@@ -14,7 +14,7 @@
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PHONE, startApp } from './helpers/app.mjs';
-import { castVotes, deal, fillNames, fromDusk, goSetup, handOff, idsWithRole, makeNames, pick, playNight, savedPlayers, setCount, setGodfather, toDay } from './helpers/game.mjs';
+import { castVotes, deal, fillNames, fromDusk, goSetup, handOff, idsWithRole, lookAtCard, makeNames, pick, playNight, savedPlayers, setCount, setGodfather, toDay } from './helpers/game.mjs';
 
 const OUT = fileURLToPath(new URL('./screenshots/', import.meta.url));
 mkdirSync(OUT, { recursive: true });
@@ -87,6 +87,7 @@ try {
         const target = Math.max(0, players.findIndex((p) => p.role === 'godfather'));
         for (let i = 0; i < target; i++) {
             await page.click('#btn-reveal-show');
+            await lookAtCard(page);
             await page.click('#btn-reveal-hide');
             await handOff(page);
         }
@@ -95,11 +96,13 @@ try {
         await page.click('#btn-reveal-show');
         await page.waitForSelector('#reveal-card:not(.hidden)');
         await shot('reveal-card-godfather');
+        await lookAtCard(page);
         await page.click('#btn-reveal-hide');
         await handOff(page);
         for (let i = target + 1; i < players.length; i++) {
             await page.click('#btn-reveal-show');
             if (players[i].role === 'citizen' && i === players.findIndex((p) => p.role === 'citizen')) await shot('reveal-card-citizen');
+            await lookAtCard(page);
             await page.click('#btn-reveal-hide');
             await handOff(page);
         }

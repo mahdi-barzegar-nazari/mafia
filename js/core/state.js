@@ -49,16 +49,20 @@ export const session = {
     /** the vote being counted on the day screen: { playerId: count } with only the non-zero counts; reset on every phase change and every undo */
     voteCounts: {},
     /** the clock reading (see ui/clock.js) at which the last role card was hidden, or null; what the 800 ms hand-off guard measures from */
-    cardHiddenAt: null
+    cardHiddenAt: null,
+    /** the clock reading at which the last role card was shown, or null; what the guard on "Hide and pass on" measures from. Reset with the rest of the card state */
+    cardShownAt: null
 };
 
 /**
  * Put every toggle and pending choice of the game screens back to its closed, empty state: no role card, no
  * roles in the players panel, no notes, nothing picked, no votes counted. It does NOT touch `cardHiddenAt`: the
- * hand-off guard must outlive the change from the last role card to the first night.
+ * hand-off guard must outlive the change from the last role card to the first night. `cardShownAt` belongs to the
+ * card and goes with it.
  */
 export function resetScreenSession() {
     session.revealCardOpen = false;
+    session.cardShownAt = null;
     session.rolesShown = false;
     session.notesShown = false;
     session.nightTarget = null;

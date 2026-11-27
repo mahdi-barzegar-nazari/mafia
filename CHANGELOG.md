@@ -4,6 +4,29 @@
 
 Step 3 of 4: **the game is playable.** Step 3B adds the night, the morning, the day, the dusk and the end of the game, the players panel, undo and a guard against the double tap, on top of step 3A's setup form, hand-off of the roles and save and resume, and step 2's engine.
 
+### Fix: the reverse double tap on the role cards
+
+A small fix on top of step 3B. `js/game/` and `js/data/` are untouched.
+
+#### Fixed
+
+- **A quick second tap on "I am {name}" no longer hides the card it just opened.** The gate's "I am {name}" and the card's "Hide and pass on" sit in the same place, so the second tap of a double tap landed on "Hide and pass on": the card was hidden at once, the index moved on, and that player never saw their role and could not go back. Now `REVEAL_HIDE` is ignored for `HAND_OFF_GUARD_MS` = 800 ms after a role card was shown, on the same injectable clock (`ui/clock.js`) and in the style of the 3B guard: a press 799 ms after is ignored, one at 800 ms is accepted, a clock reading older than the stored one never blocks, and the card of the next player starts a window of its own. An ignored press changes nothing: the card stays, the index stays, nothing is redrawn or saved. `REVEAL_SHOW` stamps `session.cardShownAt` (`markCardShown()` and `isHideGuarded()` in `ui/handOffGuard.js`); `resetScreenSession()` clears it, so a reload and leaving the reveal end the window. The 3B guard (a tap right after a card was hidden) works as before.
+
+#### Changed
+
+- `session` gains `cardShownAt`, cleared with the rest of the card state.
+- Tests that hid a card in the very instant they showed it (a person cannot, and the guard now ignores it) look at the card for 800 ms first: `peek()` of `game-flow` and the hand-off tests of `game-play`, and `storage-state` knows the new field (unit); the e2e helpers (`passOnePlayer`, `passReveal` and the new `lookAtCard` in `tests/e2e/helpers/game.mjs`), `game-flow`, `game-screens`, `offline`, `play-chrome` (the double click on "Hide and pass on" now waits for the card first) and `take-screenshots` (end to end).
+- `docs/architecture.md`: "The hand-off guard" describes both directions, the session table lists `cardShownAt`. `README.md`: test counts.
+
+#### Removed
+
+- The "Known" notes about the reverse double tap (the one below and the one in `docs/architecture.md`).
+
+#### Tests
+
+- Unit: 1185 to 1201 (`hand-off-guard` 5 new: the 799/800 boundary, the next card's own window, fail-open on a clock that went backwards, a stored value that is no time, two independent windows; `game-play` 11 new: the boundary, a double tap on "I am {name}", nothing changed or saved after an ignored hide, the last card, a new window for the next player and for the same card shown again, a backwards clock, a hide with no card, reload and leaving the reveal, a whole reveal of 8 players in both languages). End to end: 326 to 329 (a real double click on "I am {name}" in both languages with a later single click, and the 799/800 ms boundary on the page clock).
+- Four mutations were each run against their own tests and each made at least one fail: the new guard removed (also against `play-chrome`, the real double click and the boundary), the window shortened to 799 ms, the window not renewed when the next card is shown, an ignored hide that still advances the index.
+
 ### Step 3B of 4: the game screens
 
 #### Added
@@ -36,7 +59,6 @@ Step 3 of 4: **the game is playable.** Step 3B adds the night, the morning, the 
 
 #### Known
 
-- A quick second tap on "I am {name}" can land on that card's "Hide and pass on" and hide a card its player has barely seen (the reverse of the double tap fixed here). Nothing leaks, but a player can be skipped. Left alone; see `docs/architecture.md`.
 - The detective's answer is only in the morning notes: the night screen shows nothing about a target.
 - A flaky assertion of the 3A end-to-end suite (the English role card of a mafia player lists teammates whose names were typed in Persian) was narrowed to the role texts; it failed about one run in three before.
 

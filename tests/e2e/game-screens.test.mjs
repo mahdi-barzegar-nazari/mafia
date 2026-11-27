@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { startApp } from './helpers/app.mjs';
 import { assertReadable } from './helpers/contrast.mjs';
-import { LANGS, THEMES, assertFitsPhone, assertTouchTargets, deal, fillNames, goSetup, handOff, makeNames, passOnePlayer, savedPlayers, savedState, say, setCount, setGodfather, shown, withGame } from './helpers/game.mjs';
+import { LANGS, THEMES, assertFitsPhone, assertTouchTargets, deal, fillNames, goSetup, handOff, lookAtCard, makeNames, passOnePlayer, savedPlayers, savedState, say, setCount, setGodfather, shown, withGame } from './helpers/game.mjs';
 
 let app;
 let browser;
@@ -75,6 +75,7 @@ for (const lang of LANGS) {
                             await assertFitsPhone(page, `${where} card ${i + 1} (${players[i].role})`);
                             await assertReadable(page, CARD_TEXT, `${where} card ${i + 1} (${players[i].role})`);
                             await assertReadable(page, ['.reveal-role'], `${where} card ${i + 1} title`, { min: 3 });
+                            await lookAtCard(page);
                             await page.click('#btn-reveal-hide');
                             if (i < players.length - 1) await page.waitForSelector('#reveal-gate:not(.hidden)');
                             await handOff(page);
@@ -167,6 +168,7 @@ for (const lang of LANGS) {
                         assert.equal(await page.textContent('#reveal-live'), say(lang, 'reveal.live.card'), 'the live line never says the role');
                         await page.keyboard.press('Tab');
                         assert.equal(await activeId(page), 'btn-reveal-hide');
+                        await lookAtCard(page);
                         await page.keyboard.press('Enter');
                         await handOff(page); // a person takes longer than the hand-off guard between two cards
                     }

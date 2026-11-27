@@ -64,9 +64,9 @@ npm run preview        # serves ./dist to test real offline caching
 
 ```bash
 npm install            # dev tooling only: ESLint, Prettier, Playwright (this also writes package-lock.json: commit it, CI runs `npm ci`)
-npm test               # 1185 unit tests (built-in node:test, no dependencies): the app shell, the rules engine and the game screens
+npm test               # 1201 unit tests (built-in node:test, no dependencies): the app shell, the rules engine and the game screens
 npx playwright install chromium
-npm run test:e2e       # 326 real-browser tests of the production build: smoke test, offline first load (also a game with a night played), language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint, the setup and the reveal, whole games played to the end (town and mafia wins, the doctor's save and self-save rules, a tie, the godfather in the notes, a dead doctor or detective), undo and reload at every phase, hidden roles and notes, the double tap, a night and a vote with the keyboard only, and every game screen for 3, 8 and 20 players in all eight themes and both languages
+npm run test:e2e       # 329 real-browser tests of the production build: smoke test, offline first load (also a game with a night played), language switch (with the recorded Persian screens), themes, players-count field, confirm dialog, first paint, build line and its long-press reveal, install hint, the setup and the reveal, whole games played to the end (town and mafia wins, the doctor's save and self-save rules, a tie, the godfather in the notes, a dead doctor or detective), undo and reload at every phase, hidden roles and notes, the double tap, a night and a vote with the keyboard only, and every game screen for 3, 8 and 20 players in all eight themes and both languages
 npm run lint
 ```
 

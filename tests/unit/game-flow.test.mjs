@@ -116,7 +116,9 @@ function reload() {
 function peek() {
     wait(HAND_OFF_GUARD_MS); // a person takes longer than the hand-off guard between two cards
     dispatch({ type: 'REVEAL_SHOW' });
-    return cardTexts();
+    const texts = cardTexts();
+    wait(HAND_OFF_GUARD_MS); // and longer than the guard on "Hide and pass on" to read their card
+    return texts;
 }
 
 describe('dealing from the setup form', () => {

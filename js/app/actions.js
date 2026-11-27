@@ -17,7 +17,7 @@ import { getLang, normalizeLang, setLang, t } from '../i18n/index.js';
 import { errorText } from '../ui/errorTexts.js';
 import { clearToasts, showToast } from '../ui/feedback.js';
 import { trapFocus } from '../ui/focusTrap.js';
-import { isGuarded, markCardHidden } from '../ui/handOffGuard.js';
+import { isGuarded, isHideGuarded, markCardHidden, markCardShown } from '../ui/handOffGuard.js';
 import { isOfferedTarget, nightModel } from '../ui/nightModel.js';
 import { advanceReveal, playerCount } from '../ui/revealFlow.js';
 import { hasSavedGame, loadSavedGame } from '../ui/savedGame.js';
@@ -163,11 +163,15 @@ export function handleAction(action) {
             // A quick second tap after "Hide and pass on" lands on this button: it must not show the next role.
             if (isGuarded()) break;
             session.revealCardOpen = true;
+            markCardShown();
             commitState();
             break;
         case 'REVEAL_HIDE': {
             // Only a card that is showing can be hidden and passed on: a stray second tap must not skip a player.
             if (gameState.phase !== 'reveal' || !gameState.game || !session.revealCardOpen) break;
+            // The reverse double tap: a quick second tap on "I am {name}" lands on this button and would hide a card its
+            // player has barely seen, with no way back to it. Nothing changes: the card stays, the index stays.
+            if (isHideGuarded()) break;
             session.revealCardOpen = false;
             markCardHidden();
             const next = advanceReveal(gameState.reveal && gameState.reveal.index, playerCount(gameState.game));
